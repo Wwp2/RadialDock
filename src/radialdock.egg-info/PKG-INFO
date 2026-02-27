@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: radialdock
+Version: 0.1.0
+Summary: Windows 11 radial dock launcher built with PySide6 + QML.
+Requires-Python: >=3.11
+Requires-Dist: PySide6<7,>=6.8
+Requires-Dist: pywin32>=306
+Requires-Dist: watchdog>=4.0
+Requires-Dist: pillow>=10.4
+Requires-Dist: pyinstaller>=6.10

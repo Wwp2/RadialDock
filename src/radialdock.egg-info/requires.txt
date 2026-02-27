@@ -1,0 +1,5 @@
+PySide6<7,>=6.8
+pywin32>=306
+watchdog>=4.0
+pillow>=10.4
+pyinstaller>=6.10

@@ -1,0 +1,32 @@
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Qt/PySide runtime files
+*.qmlc
+*.jsc
+*.qmltypes
+
+# Build and packaging
+build/
+dist/
+*.spec
+*.exe.manifest
+
+# IDE/editor
+.vscode/.ropeproject/
+.idea/
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# App cache/data artifacts
+cache/
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs
+*.log
