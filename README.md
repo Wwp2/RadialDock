@@ -6,7 +6,9 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 
 - Step 1 complete: repo scaffold, `.venv`, dependencies, hello overlay QML window.
 - Step 2 complete: Windows global hotkey (`RegisterHotKey` + `WM_HOTKEY`) toggles overlay centered at cursor.
-- Steps 3-12: planned and scaffolded.
+- Step 3 complete: polished radial ring sample layout with smooth open/close animation.
+- Step 4 complete: internal ring drag reorder with animated neighbor shifts and drag-out remove.
+- Steps 5-12: planned/scaffolded, currently implementing Step 5 next.
 
 ## Prerequisites
 
@@ -15,27 +17,36 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 
 ## Run (VS Code friendly)
 
-1. Create and activate venv:
+1. Create and activate venv (Git Bash):
 
-```powershell
+```bash
 py -3 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+source .venv/Scripts/activate
 ```
 
 2. Install dependencies:
 
-```powershell
+```bash
 python -m pip install -r requirements.txt
 python -m pip install -e .
 ```
 
 3. Start app:
 
-```powershell
+```bash
 python -m radialdock.app
 ```
 
 4. Press `Ctrl+Space` to toggle the overlay near your cursor.
+
+PowerShell alternative:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m pip install -e .
+python -m radialdock.app
+```
 
 ## CLI Modes
 

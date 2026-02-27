@@ -35,10 +35,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def configure_high_dpi() -> None:
-    if hasattr(Qt.ApplicationAttribute, "AA_EnableHighDpiScaling"):
-        QGuiApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
-    if hasattr(Qt.ApplicationAttribute, "AA_UseHighDpiPixmaps"):
-        QGuiApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
+    # Qt 6 enables high-DPI scaling by default. Keep rounding predictable.
+    if hasattr(QGuiApplication, "setHighDpiScaleFactorRoundingPolicy"):
+        QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+            Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+        )
 
 
 def resolve_ui_dir() -> Path:
