@@ -4,10 +4,11 @@ Item {
     id: tile
     property alias text: title.text
     property url imageSource: ""
+    signal activated()
 
     width: 96
     height: 96
-    scale: tileMouse.containsMouse ? 1.08 : 1.0
+    scale: tileMouse.containsMouse ? 1.14 : 1.0
 
     Behavior on scale {
         NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
@@ -46,5 +47,11 @@ Item {
 
     HoverHandler {
         id: tileMouse
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton
+        onClicked: tile.activated()
     }
 }

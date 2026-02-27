@@ -2,9 +2,9 @@
 
 ## Current Step
 
-- Current step number: **8**
-- Implemented now: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, and Step 7**
-- Next: **Step 8 - Folder open sub-view with clickable file tiles**
+- Current step number: **11**
+- Implemented now: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7, Step 8, Step 9, and Step 10**
+- Next: **Step 11 - Refresh-on-open behavior improvements and optional watcher integration**
 
 ## Status Snapshot
 
@@ -15,8 +15,11 @@
 - Step 5: Complete
 - Step 6: Complete
 - Step 7: Complete
-- Step 8: In progress
-- Steps 9-12: Pending
+- Step 8: Complete
+- Step 9: Complete
+- Step 10: Complete (new settings menu step)
+- Step 11: In progress
+- Steps 12-13: Pending
 
 ## Change Log
 
@@ -195,3 +198,170 @@
 4. Drag a file and a folder from Explorer into the ring.
 5. Confirm both new entries display icons appropriate to type.
 6. Restart app and confirm icons still display for persisted items.
+
+### 2026-02-27 - Change 14 (Step 8 complete: folder open sub-view + tile open)
+
+- Added folder browsing backend in `src/radialdock/model.py`:
+  - `listFolderEntries(folder_path, refresh_on_open)` slot returns folder contents with path/kind/icon.
+  - `openPath(path)` slot wraps Windows open behavior for QML use.
+  - `pathKind(path)` slot added for robust folder/file/shortcut classification.
+- Updated `ui/RadialRing.qml`:
+  - Clicking a ring folder item now opens an inner `FolderView`.
+  - Folder items are loaded as tiles with icons.
+  - Clicking a tile opens the selected file/folder.
+  - Added back/close flow for folder sub-view.
+- Updated `ui/FolderView.qml` and `ui/Tile.qml`:
+  - Folder panel header with back button.
+  - Tile click signal and stronger hover magnification.
+
+### 2026-02-27 - Step 8 Verification Instructions (Git Bash)
+
+1. In repo root:
+   - `source .venv/Scripts/activate`
+   - `python -m radialdock.app`
+2. Press `Ctrl+Space`.
+3. Drag a real folder from Explorer into the ring and drop it.
+4. Click that folder ring item.
+5. Confirm folder sub-view opens with tiles/icons for files/folders inside.
+6. Click one tile and confirm Windows opens it.
+
+### 2026-02-27 - Change 15 (Step 9 complete: thumbnail cache with SQLite + disk)
+
+- Implemented full thumbnail cache in `src/radialdock/cache.py`:
+  - SQLite metadata store (`thumbs.sqlite3`) with path + mtime key semantics.
+  - Disk thumbnail outputs under cache `thumbs/`.
+  - Cache lookup, render, upsert, and stale thumbnail cleanup flow.
+- Integrated cache into `src/radialdock/model.py`:
+  - Added `ThumbnailCache` usage for image files in folder views.
+  - Folder listing now returns thumbnail URI for image files and icon fallback for non-image entries.
+  - Wired refresh parameter through listing path for future refresh-on-open behavior.
+- Verified cache generation and metadata write in local runtime checks.
+
+### 2026-02-27 - Step 9 Verification Instructions (Git Bash)
+
+1. In repo root:
+   - `source .venv/Scripts/activate`
+   - `python -m radialdock.app`
+2. Press `Ctrl+Space`.
+3. Add/open a folder containing image files (`.png`/`.jpg`) in the ring.
+4. Confirm image entries display thumbnail previews in folder view tiles.
+5. Inspect cache paths:
+   - `%APPDATA%\\RadialDock\\cache\\thumbs.sqlite3`
+   - `%APPDATA%\\RadialDock\\cache\\thumbs\\`
+6. Confirm both database and thumbnail files exist after viewing the folder.
+
+### 2026-02-27 - Change 16 (UI interaction tweaks before Step 10)
+
+- Implemented universal right-click back behavior in `ui/Main.qml`:
+  - If folder view is open, right-click closes folder view and returns to radial menu.
+  - If radial menu is showing, right-click closes the overlay.
+- Removed folder view back button from `ui/FolderView.qml`; right-click is now the primary back action.
+- Added adaptive folder panel sizing in `ui/RadialRing.qml`:
+  - Folder panel scales up/down by item count.
+  - Overlay/stage sizing now adapts in `ui/Main.qml`.
+  - Window is clamped within screen bounds so expanded panel stays on-screen.
+- Added compact folder list fallback in `ui/FolderView.qml` + `ui/RadialRing.qml`:
+  - If folder item count is greater than threshold, show compact list with small icons.
+  - Threshold is currently `folderListFallbackThreshold: 50` in `ui/RadialRing.qml`.
+
+### 2026-02-27 - UI Tweak Verification Instructions (Git Bash)
+
+1. In repo root:
+   - `source .venv/Scripts/activate`
+   - `python -m radialdock.app`
+2. Press `Ctrl+Space`, open a folder from ring, then right-click anywhere on UI.
+3. Confirm folder view closes and radial menu remains visible.
+4. Right-click again and confirm radial overlay closes.
+5. Open a folder with moderate item count and confirm panel sizes to show all items immediately.
+6. Open a folder with more than 50 items and confirm compact list mode with small icons is used.
+
+### 2026-02-27 - Change 17 (Folder header text alignment polish)
+
+- Updated `ui/FolderView.qml` header layout so `Right click: Back` is centered between folder title (left) and mode label (right).
+- Reduced back hint font size slightly (`10` -> `9`) to keep it inside bounds on smaller widths.
+
+### 2026-02-27 - Change 18 (Folder-back animation smoothing)
+
+- Added folder-back animation handoff between `ui/RadialRing.qml` and `ui/Main.qml`.
+- Returning from folder view now replays the same ring open animation sequence (fade/scale/reveal) used by hotkey open.
+- This removes the twitchy icon transition previously seen when closing folder sub-view.
+
+### 2026-02-27 - Change 19 (Animation speed tweak: 2x faster)
+
+- Updated `ui/Main.qml` with `animationSpeedScale` and set it to `0.5`.
+- Main open/back animation timings are now twice as fast.
+- Close and stage resize timings were also scaled by the same factor for consistency.
+
+### 2026-02-27 - Change 20 (Step 10 complete: center settings menu + persisted runtime preferences)
+
+- Added a new step: center-click settings menu as a first-class runtime control hub.
+- Implemented full settings panel in `ui/Settings.qml` and wired it from `ui/RadialRing.qml` center core click/hover.
+- Added settings features:
+  - Clear all ring items with explicit confirmation.
+  - Animation speed scale input (`0.1` to `10.0`) with guidance (lower=faster, higher=slower).
+  - Toggle to disable animations for instant transitions.
+  - Compact list fallback threshold input for folder view.
+  - Reset quick settings to defaults with confirmation.
+- Persisted settings in user config via `src/radialdock/model.py`:
+  - `animation_speed_scale`
+  - `animations_enabled`
+  - `folder_compact_threshold`
+  - existing `refresh_on_open`
+- Added model slots/properties to support settings UI:
+  - `clearRingItems()`
+  - `resetQuickSettings()`
+  - `animationSpeedScale`, `animationsEnabled`, `folderCompactThreshold` properties
+- Updated `ui/Main.qml` and `ui/RadialRing.qml` to consume persisted settings at runtime.
+- Decision: settings are stored per user/installation in `%APPDATA%\\RadialDock\\config.json` (not in source files).
+
+### 2026-02-27 - Change 21 (Settings UX polish pass)
+
+- Fixed settings-back transition jitter by routing settings close through the same reopen animation path used for radial launch:
+  - Added `settingsBackRequested` signal in `ui/RadialRing.qml`.
+  - Added `animateBackFromSettings()` in `ui/Main.qml`.
+- Removed settings panel close button (right-click back remains the universal exit/back action).
+- Replaced default white button styling in `ui/Settings.qml` with a dark custom button component for better contrast with light text.
+
+### 2026-02-27 - Change 22 (Settings alignment + style warning fix)
+
+- Renamed settings toggle label from `Disable animations` to `Animations` with standard on/off behavior.
+- Aligned all right-side helper texts vertically to center with their row controls in `ui/Settings.qml`.
+- Fixed Qt native-style customization warnings by replacing styled `Button` usage with a custom `ActionButton` rectangle component.
+
+### 2026-02-27 - Change 23 (Dedicated radial icon move speed parameter)
+
+- Added `radialItemMoveBaseDuration` in `ui/RadialRing.qml` as a single tuning parameter for icon move/reorder speed around the ring.
+- The value is still scaled by the global `animationSpeedScale` setting, so settings-based speed control continues to apply.
+
+### 2026-02-27 - Change 24 (Double-move animation bugfix after drop/remove)
+
+- Root cause: after local QML mutations (drop/remove), persistence save triggered `ringItemsChanged`, and the ring immediately reloaded its model from backend, causing a second movement pass.
+- Fix: added `skipNextModelSync` guard in `ui/RadialRing.qml` to ignore the immediate self-originated `ringItemsChanged` following `saveRingItems(...)`.
+- Result: external drop/remove now performs a single movement transition instead of a double movement.
+
+### 2026-02-27 - Change 25 (Center-safe drag behavior)
+
+- Hardened drag behavior in `ui/RadialRing.qml` to ignore the center region during rearrange:
+  - Added `centerIgnoreRadius` dead-zone.
+  - While pointer is in center zone, reorder target locks to dragged item and remove state is suppressed.
+- Switched remove/reorder decision inputs to pointer position on drag/release for more stable intent handling.
+- Disabled center settings click target while dragging (`ring.draggedIndex < 0`) to avoid interaction interference.
+
+### 2026-02-27 - Change 26 (Drag pickup offset bugfix)
+
+- Fixed intermittent icon pickup "pop" in `ui/RadialRing.qml`.
+- Root cause: per-item drag anchor values could stay stale between drags.
+- Fix: on each press, drag anchor is reinitialized to current slot position before calculating pointer offset; anchor is reset again after release/cancel.
+
+### 2026-02-27 - Step 10 Verification Instructions (Git Bash)
+
+1. In repo root:
+   - `source .venv/Scripts/activate`
+   - `python -m radialdock.app`
+2. Press `Ctrl+Space` and hover center core; confirm hint appears.
+3. Click center to open settings panel.
+4. Change animation speed, close settings, and confirm animation timing changes.
+5. Toggle animations off; confirm transitions become instant.
+6. Set compact threshold to a low value (for test), open folder, and confirm compact list mode triggers.
+7. Use `Clear All Items` and `Reset Settings To Default` and confirm each asks for confirmation.
+8. Restart app and confirm settings persist from `%APPDATA%\\RadialDock\\config.json`.

@@ -9,8 +9,18 @@ from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QFileInfo, QObject, P
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QFileIconProvider
 
+from radialdock.cache import ThumbnailCache
+from radialdock.shell_open import open_path
+
 
 APP_DIR_NAME = "RadialDock"
+DEFAULT_ANIMATION_SPEED_SCALE = 0.2
+MIN_ANIMATION_SPEED_SCALE = 0.1
+MAX_ANIMATION_SPEED_SCALE = 10.0
+DEFAULT_ANIMATIONS_ENABLED = True
+DEFAULT_FOLDER_COMPACT_THRESHOLD = 50
+MIN_FOLDER_COMPACT_THRESHOLD = 1
+MAX_FOLDER_COMPACT_THRESHOLD = 5000
 DEFAULT_ITEM_COLORS = [
     "#FF7B6C",
     "#8D9BFF",
@@ -21,6 +31,16 @@ DEFAULT_ITEM_COLORS = [
     "#83E37B",
     "#F0DF87",
 ]
+IMAGE_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".bmp",
+    ".gif",
+    ".webp",
+    ".tif",
+    ".tiff",
+}
 
 
 @dataclass
@@ -48,6 +68,9 @@ def default_ring_items() -> list[DockItem]:
 class Settings:
     hotkey: str = "Ctrl+Space"
     refresh_on_open: bool = True
+    animation_speed_scale: float = DEFAULT_ANIMATION_SPEED_SCALE
+    animations_enabled: bool = DEFAULT_ANIMATIONS_ENABLED
+    folder_compact_threshold: int = DEFAULT_FOLDER_COMPACT_THRESHOLD
     items: list[DockItem] = field(default_factory=default_ring_items)
 
 
@@ -71,12 +94,16 @@ class AppPaths:
 class AppModel(QObject):
     refreshOnOpenChanged = Signal()
     ringItemsChanged = Signal()
+    animationSpeedScaleChanged = Signal()
+    animationsEnabledChanged = Signal()
+    folderCompactThresholdChanged = Signal()
 
     def __init__(self, paths: AppPaths) -> None:
         super().__init__()
         self.paths = paths
         self.settings = self._load_settings()
         self._icon_provider = QFileIconProvider()
+        self._thumb_cache = ThumbnailCache(paths.cache_dir)
         self._icon_cache: dict[str, str] = {}
 
     def _load_settings(self) -> Settings:
@@ -104,6 +131,13 @@ class AppModel(QObject):
             return Settings(
                 hotkey=raw.get("hotkey", "Ctrl+Space"),
                 refresh_on_open=bool(raw.get("refresh_on_open", True)),
+                animation_speed_scale=self._sanitize_animation_speed(
+                    raw.get("animation_speed_scale", DEFAULT_ANIMATION_SPEED_SCALE)
+                ),
+                animations_enabled=bool(raw.get("animations_enabled", DEFAULT_ANIMATIONS_ENABLED)),
+                folder_compact_threshold=self._sanitize_compact_threshold(
+                    raw.get("folder_compact_threshold", DEFAULT_FOLDER_COMPACT_THRESHOLD)
+                ),
                 items=items,
             )
         except (json.JSONDecodeError, OSError):
@@ -115,10 +149,42 @@ class AppModel(QObject):
         payload = asdict(settings)
         self.paths.config_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
+    def _sanitize_animation_speed(self, value: object) -> float:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return DEFAULT_ANIMATION_SPEED_SCALE
+        return max(MIN_ANIMATION_SPEED_SCALE, min(MAX_ANIMATION_SPEED_SCALE, numeric))
+
+    def _sanitize_compact_threshold(self, value: object) -> int:
+        try:
+            numeric = int(value)
+        except (TypeError, ValueError):
+            return DEFAULT_FOLDER_COMPACT_THRESHOLD
+        return max(MIN_FOLDER_COMPACT_THRESHOLD, min(MAX_FOLDER_COMPACT_THRESHOLD, numeric))
+
     def _color_for_item(self, path: str, label: str, index: int) -> str:
         seed = path or label or str(index)
         value = sum(ord(char) for char in seed)
         return DEFAULT_ITEM_COLORS[value % len(DEFAULT_ITEM_COLORS)]
+
+    def _kind_for_path(self, candidate: Path) -> str:
+        if candidate.is_dir():
+            return "folder"
+        if candidate.suffix.lower() == ".lnk":
+            return "shortcut"
+        return "file"
+
+    @Slot(str, result=str)
+    def pathKind(self, path: str) -> str:
+        if not path:
+            return "file"
+        candidate = Path(path)
+        if not candidate.exists():
+            if candidate.suffix.lower() == ".lnk":
+                return "shortcut"
+            return "file"
+        return self._kind_for_path(candidate)
 
     def get_refresh_on_open(self) -> bool:
         return self.settings.refresh_on_open
@@ -129,6 +195,39 @@ class AppModel(QObject):
         self.settings.refresh_on_open = value
         self._save_settings(self.settings)
         self.refreshOnOpenChanged.emit()
+
+    def get_animation_speed_scale(self) -> float:
+        return self.settings.animation_speed_scale
+
+    def set_animation_speed_scale(self, value: float) -> None:
+        sanitized = self._sanitize_animation_speed(value)
+        if self.settings.animation_speed_scale == sanitized:
+            return
+        self.settings.animation_speed_scale = sanitized
+        self._save_settings(self.settings)
+        self.animationSpeedScaleChanged.emit()
+
+    def get_animations_enabled(self) -> bool:
+        return self.settings.animations_enabled
+
+    def set_animations_enabled(self, value: bool) -> None:
+        normalized = bool(value)
+        if self.settings.animations_enabled == normalized:
+            return
+        self.settings.animations_enabled = normalized
+        self._save_settings(self.settings)
+        self.animationsEnabledChanged.emit()
+
+    def get_folder_compact_threshold(self) -> int:
+        return self.settings.folder_compact_threshold
+
+    def set_folder_compact_threshold(self, value: int) -> None:
+        sanitized = self._sanitize_compact_threshold(value)
+        if self.settings.folder_compact_threshold == sanitized:
+            return
+        self.settings.folder_compact_threshold = sanitized
+        self._save_settings(self.settings)
+        self.folderCompactThresholdChanged.emit()
 
     def get_ring_items(self) -> list[dict[str, str]]:
         return [asdict(item) for item in self.settings.items]
@@ -152,6 +251,24 @@ class AppModel(QObject):
         self.settings.items = parsed_items
         self._save_settings(self.settings)
         self.ringItemsChanged.emit()
+
+    @Slot()
+    def clearRingItems(self) -> None:
+        self.settings.items = []
+        self._save_settings(self.settings)
+        self.ringItemsChanged.emit()
+
+    @Slot()
+    def resetQuickSettings(self) -> None:
+        self.settings.refresh_on_open = True
+        self.settings.animation_speed_scale = DEFAULT_ANIMATION_SPEED_SCALE
+        self.settings.animations_enabled = DEFAULT_ANIMATIONS_ENABLED
+        self.settings.folder_compact_threshold = DEFAULT_FOLDER_COMPACT_THRESHOLD
+        self._save_settings(self.settings)
+        self.refreshOnOpenChanged.emit()
+        self.animationSpeedScaleChanged.emit()
+        self.animationsEnabledChanged.emit()
+        self.folderCompactThresholdChanged.emit()
 
     @Slot(str, str, str, result=str)
     def iconDataUrl(self, path: str, kind: str, label: str) -> str:
@@ -197,6 +314,51 @@ class AppModel(QObject):
         painter.end()
         return pixmap
 
+    def _preview_source(self, path: Path, kind: str, label: str, refresh_on_open: bool) -> str:
+        if kind == "file" and path.suffix.lower() in IMAGE_EXTENSIONS:
+            thumb_uri = self._thumb_cache.get_thumbnail_uri(path, refresh=refresh_on_open, size=(120, 120))
+            if thumb_uri:
+                return thumb_uri
+        return self.iconDataUrl(str(path), kind, label)
+
+    @Slot(str, result=bool)
+    def openPath(self, path: str) -> bool:
+        if not path:
+            return False
+        return open_path(path)
+
+    @Slot(str, bool, result="QVariantList")
+    def listFolderEntries(self, folder_path: str, refresh_on_open: bool) -> list[dict[str, str]]:
+        folder = Path(folder_path)
+        if not folder.exists() or not folder.is_dir():
+            return []
+
+        entries: list[dict[str, str]] = []
+        try:
+            children = sorted(
+                folder.iterdir(),
+                key=lambda path: (not path.is_dir(), path.name.lower()),
+            )
+            for child in children[:200]:
+                child_kind = self._kind_for_path(child)
+                label = child.name
+                entries.append(
+                    {
+                        "path": str(child),
+                        "label": label,
+                        "kind": child_kind,
+                        "icon": self._preview_source(
+                            path=child,
+                            kind=child_kind,
+                            label=label,
+                            refresh_on_open=refresh_on_open,
+                        ),
+                    }
+                )
+        except OSError:
+            return []
+        return entries
+
     refreshOnOpen = Property(
         bool,
         get_refresh_on_open,
@@ -208,4 +370,25 @@ class AppModel(QObject):
         "QVariantList",
         get_ring_items,
         notify=ringItemsChanged,
+    )
+
+    animationSpeedScale = Property(
+        float,
+        get_animation_speed_scale,
+        set_animation_speed_scale,
+        notify=animationSpeedScaleChanged,
+    )
+
+    animationsEnabled = Property(
+        bool,
+        get_animations_enabled,
+        set_animations_enabled,
+        notify=animationsEnabledChanged,
+    )
+
+    folderCompactThreshold = Property(
+        int,
+        get_folder_compact_threshold,
+        set_folder_compact_threshold,
+        notify=folderCompactThresholdChanged,
     )

@@ -8,9 +8,9 @@ This file is the single source of truth for project planning and milestone track
 
 - Date: 2026-02-27
 - Active phase: MVP buildout
-- Current step: **Step 8**
-- Completed: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7**
-- In progress: **Step 8**
+- Current step: **Step 11**
+- Completed: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7, Step 8, Step 9, Step 10**
+- In progress: **Step 11**
 
 ## Status Legend
 
@@ -19,7 +19,7 @@ This file is the single source of truth for project planning and milestone track
 - `TODO`: Not started.
 - `BLOCKED`: Waiting on decision/dependency.
 
-## Milestone Board (MVP Steps 1-12)
+## Milestone Board (MVP Steps 1-13)
 
 | Step | Name | Status | Exit Criteria |
 |---|---|---|---|
@@ -30,11 +30,12 @@ This file is the single source of truth for project planning and milestone track
 | 5 | External Explorer drop into ring | DONE | Files/folders/shortcuts dropped from Explorer are added to ring items. |
 | 6 | Persistence for ring items | DONE | Items saved/loaded from `%AppData%\\RadialDock\\config.json`. |
 | 7 | Per-item icons | DONE | Ring items show file/folder/app icons from Windows/Qt icon provider. |
-| 8 | Folder open sub-view + open file | IN PROGRESS | Clicking folder opens inner folder view tiles; clicking tile opens item. |
-| 9 | Thumbnail cache (SQLite + disk) | TODO | Thumbnails generated/cached by path + mtime; cache hit path works. |
-| 10 | Refresh-on-open toggle (+optional watch) | TODO | Toggle drives rescan behavior; stale cache handling is graceful. |
-| 11 | Self install/uninstall via same EXE | TODO | `--install`, `--uninstall`, installed marker, copy to `%LocalAppData%\\RadialDock`, Start Menu shortcut. |
-| 12 | PyInstaller onefile + smoke test | TODO | `dist\\RadialDock.exe` produced; smoke test covers launch/hotkey/basic open. |
+| 8 | Folder open sub-view + open file | DONE | Clicking folder opens inner folder view tiles; clicking tile opens item. |
+| 9 | Thumbnail cache (SQLite + disk) | DONE | Thumbnails generated/cached by path + mtime; cache hit path works. |
+| 10 | Center settings menu + runtime preferences | DONE | Center click opens settings panel with confirmation actions and persisted runtime controls. |
+| 11 | Refresh-on-open toggle (+optional watch) | IN PROGRESS | Toggle drives rescan behavior; stale cache handling is graceful. |
+| 12 | Self install/uninstall via same EXE | TODO | `--install`, `--uninstall`, installed marker, copy to `%LocalAppData%\\RadialDock`, Start Menu shortcut. |
+| 13 | PyInstaller onefile + smoke test | TODO | `dist\\RadialDock.exe` produced; smoke test covers launch/hotkey/basic open. |
 
 ## Detailed Work Plan
 
@@ -82,21 +83,28 @@ This file is the single source of truth for project planning and milestone track
 - Generate thumbnails via Pillow (bounded size, consistent format).
 - Key cache by normalized path + last modified timestamp.
 
-### Step 10 - Refresh Behavior
+### Step 10 - Settings Hub (new)
+
+- Add center-click settings access in radial core.
+- Add persisted quick settings in user config (not source files).
+- Include clear-all and reset-defaults with confirmations.
+- Add runtime controls for animation speed, animation disable, and compact list threshold.
+
+### Step 11 - Refresh Behavior
 
 - Add settings toggle to control refresh strategy.
 - If refresh enabled: rescan and update cache on folder open.
 - If disabled: serve cache first, fail gracefully on missing files.
 - Optional: lightweight watcher integration via `watchdog`.
 
-### Step 11 - Install/Uninstall
+### Step 12 - Install/Uninstall
 
 - Install copies EXE to `%LocalAppData%\\RadialDock`.
 - Create Start Menu shortcut.
 - Write installed marker and support both interactive and CLI flows.
 - Uninstall removes shortcut, marker, and installed files safely.
 
-### Step 12 - Packaging and Smoke Test
+### Step 13 - Packaging and Smoke Test
 
 - Finalize `build.ps1` and PyInstaller data inclusion.
 - Produce onefile EXE and run smoke tests:
@@ -122,14 +130,14 @@ This file is the single source of truth for project planning and milestone track
 
 ## Latest Verification Checklist
 
-### Step 7 (Per-item icons)
+### Step 10 (Center settings menu + runtime preferences)
 
 1. Launch app with `python -m radialdock.app`.
 2. Press `Ctrl+Space`.
-3. Confirm each ring item now shows an icon above its label.
-4. Drag a file/folder from Explorer into the ring.
-5. Confirm dropped item also shows an icon (file/folder dependent).
-6. Reopen the app and confirm icons still render for persisted entries.
+3. Hover center core and confirm hint appears, then click center to open settings.
+4. Change animation speed and verify UI timing updates.
+5. Toggle animations off and verify transitions become instant.
+6. Confirm clear-all and reset-default actions require confirmation and apply correctly.
 
 ## Risk Register
 
@@ -142,3 +150,6 @@ This file is the single source of truth for project planning and milestone track
 
 - 2026-02-27: Use PySide6 + QML for UI and ctypes-based hotkey handling around Qt native event filter.
 - 2026-02-27: Keep user config in `%AppData%\\RadialDock\\config.json` and cache in app data cache folder.
+- 2026-02-27: Adopt universal right-click back behavior (folder view back, then overlay close).
+- 2026-02-27: Use compact folder list fallback when folder entry count exceeds 50 (threshold kept easy to edit in QML for now).
+- 2026-02-27: Runtime quick settings are persisted in user config (`config.json`) so source files remain unchanged.

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
+
+from PIL import Image, ImageOps
 
 
 @dataclass
@@ -32,4 +35,106 @@ class ThumbnailCache:
                 )
                 """
             )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_thumbnails_mtime ON thumbnails (mtime)"
+            )
 
+    def get_thumbnail_uri(
+        self,
+        source_path: Path,
+        refresh: bool = False,
+        size: tuple[int, int] = (96, 96),
+    ) -> str | None:
+        thumb_path = self.get_thumbnail_path(source_path=source_path, refresh=refresh, size=size)
+        if thumb_path is None:
+            return None
+        return thumb_path.as_uri()
+
+    def get_thumbnail_path(
+        self,
+        source_path: Path,
+        refresh: bool = False,
+        size: tuple[int, int] = (96, 96),
+    ) -> Path | None:
+        if not source_path.exists() or not source_path.is_file():
+            return None
+
+        try:
+            mtime = source_path.stat().st_mtime
+        except OSError:
+            return None
+
+        cached = self._lookup(source_path=source_path, mtime=mtime, refresh=refresh)
+        if cached is not None:
+            return cached
+
+        rendered = self._render_thumbnail(source_path=source_path, mtime=mtime, size=size)
+        if rendered is None:
+            return None
+
+        self._upsert(source_path=source_path, mtime=mtime, thumb_path=rendered)
+        return rendered
+
+    def _lookup(self, source_path: Path, mtime: float, refresh: bool) -> Path | None:
+        if refresh:
+            return None
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT mtime, thumb_path FROM thumbnails WHERE path = ?",
+                (str(source_path),),
+            ).fetchone()
+        if row is None:
+            return None
+        cached_mtime = float(row[0])
+        cached_thumb = Path(str(row[1]))
+        if cached_mtime != mtime or not cached_thumb.exists():
+            return None
+        return cached_thumb
+
+    def _render_thumbnail(
+        self,
+        source_path: Path,
+        mtime: float,
+        size: tuple[int, int],
+    ) -> Path | None:
+        key = f"{source_path}|{mtime}|{size[0]}x{size[1]}"
+        thumb_name = hashlib.sha1(key.encode("utf-8"), usedforsecurity=False).hexdigest() + ".png"
+        thumb_path = self.thumb_dir / thumb_name
+        try:
+            with Image.open(source_path) as image:
+                image = ImageOps.exif_transpose(image)
+                image.thumbnail(size, Image.Resampling.LANCZOS)
+                if image.mode not in ("RGB", "RGBA"):
+                    image = image.convert("RGBA")
+                image.save(thumb_path, "PNG")
+        except Exception:
+            return None
+        return thumb_path
+
+    def _upsert(self, source_path: Path, mtime: float, thumb_path: Path) -> None:
+        previous_thumb: str | None = None
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT thumb_path FROM thumbnails WHERE path = ?",
+                (str(source_path),),
+            ).fetchone()
+            if row is not None:
+                previous_thumb = str(row[0])
+            conn.execute(
+                """
+                INSERT INTO thumbnails(path, mtime, thumb_path)
+                VALUES(?, ?, ?)
+                ON CONFLICT(path) DO UPDATE
+                SET mtime=excluded.mtime, thumb_path=excluded.thumb_path
+                """,
+                (str(source_path), mtime, str(thumb_path)),
+            )
+            conn.commit()
+
+        if previous_thumb and previous_thumb != str(thumb_path):
+            previous_path = Path(previous_thumb)
+            if previous_path.exists():
+                try:
+                    previous_path.unlink()
+                except OSError:
+                    pass

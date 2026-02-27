@@ -4,8 +4,28 @@ import QtQuick.Controls
 
 Window {
     id: overlay
-    width: 500
-    height: 500
+    property int outerPadding: 110
+    property int baseStageWidth: 390
+    property int baseStageHeight: 390
+    property real animationSpeedScale: (typeof appModel !== "undefined" && appModel.animationSpeedScale)
+                                       ? appModel.animationSpeedScale
+                                       : 0.2
+    property bool animationsEnabled: (typeof appModel !== "undefined")
+                                     ? appModel.animationsEnabled
+                                     : true
+    readonly property int maxStageWidth: Math.max(baseStageWidth, Screen.width - outerPadding - 20)
+    readonly property int maxStageHeight: Math.max(baseStageHeight, Screen.height - outerPadding - 20)
+    property int targetStageWidth: Math.min(
+                                       maxStageWidth,
+                                       ringWidget ? ringWidget.preferredStageWidth : baseStageWidth
+                                   )
+    property int targetStageHeight: Math.min(
+                                        maxStageHeight,
+                                        ringWidget ? ringWidget.preferredStageHeight : baseStageHeight
+                                    )
+
+    width: targetStageWidth + outerPadding
+    height: targetStageHeight + outerPadding
     visible: false
     opacity: 0.0
     color: "transparent"
@@ -14,7 +34,60 @@ Window {
     property bool overlayOpen: false
     property real openProgress: 0.0
     property bool closing: false
-    property bool externalDragActive: false
+
+    function animDuration(baseDuration) {
+        if (!animationsEnabled) {
+            return 0
+        }
+        return Math.max(1, Math.round(baseDuration * animationSpeedScale))
+    }
+
+    function clampWindowToScreen() {
+        var maxX = Math.max(0, Screen.width - width)
+        var maxY = Math.max(0, Screen.height - height)
+        x = Math.max(0, Math.min(x, maxX))
+        y = Math.max(0, Math.min(y, maxY))
+    }
+
+    function handleBackAction() {
+        if (ringWidget && ringWidget.settingsOpen) {
+            ringWidget.closeSettingsView()
+            return
+        }
+        if (ringWidget && ringWidget.folderOpen) {
+            ringWidget.closeFolderView()
+            return
+        }
+        hideOverlay()
+    }
+
+    function animateBackFromFolder() {
+        if (!ringWidget || !ringWidget.folderOpen) {
+            return
+        }
+        ringWidget.applyFolderClosed()
+        closing = false
+        overlayOpen = true
+        closeAnim.stop()
+        opacity = 0.0
+        openProgress = 0.0
+        stage.scale = 0.82
+        openAnim.restart()
+    }
+
+    function animateBackFromSettings() {
+        if (!ringWidget || !ringWidget.settingsOpen) {
+            return
+        }
+        ringWidget.applySettingsClosed()
+        closing = false
+        overlayOpen = true
+        closeAnim.stop()
+        opacity = 0.0
+        openProgress = 0.0
+        stage.scale = 0.82
+        openAnim.restart()
+    }
 
     function showAtCursor(cx, cy) {
         var targetX = cx - width / 2
@@ -66,7 +139,7 @@ Window {
 
     Shortcut {
         sequence: "Esc"
-        onActivated: overlay.hideOverlay()
+        onActivated: overlay.handleBackAction()
     }
 
     ParallelAnimation {
@@ -76,7 +149,7 @@ Window {
             property: "opacity"
             from: 0.0
             to: 1.0
-            duration: 160
+            duration: overlay.animDuration(160)
             easing.type: Easing.OutCubic
         }
         NumberAnimation {
@@ -84,7 +157,7 @@ Window {
             property: "scale"
             from: 0.82
             to: 1.0
-            duration: 220
+            duration: overlay.animDuration(220)
             easing.type: Easing.OutBack
         }
         NumberAnimation {
@@ -92,7 +165,7 @@ Window {
             property: "openProgress"
             from: 0.0
             to: 1.0
-            duration: 300
+            duration: overlay.animDuration(300)
             easing.type: Easing.OutCubic
         }
     }
@@ -103,21 +176,21 @@ Window {
             target: overlay
             property: "opacity"
             to: 0.0
-            duration: 130
+            duration: overlay.animDuration(130)
             easing.type: Easing.InCubic
         }
         NumberAnimation {
             target: stage
             property: "scale"
             to: 0.9
-            duration: 130
+            duration: overlay.animDuration(130)
             easing.type: Easing.InCubic
         }
         NumberAnimation {
             target: overlay
             property: "openProgress"
             to: 0.0
-            duration: 130
+            duration: overlay.animDuration(130)
             easing.type: Easing.InCubic
         }
         onFinished: {
@@ -130,8 +203,15 @@ Window {
         id: stage
         z: 1
         anchors.centerIn: parent
-        width: 390
-        height: 390
+        width: overlay.targetStageWidth
+        height: overlay.targetStageHeight
+
+        Behavior on width {
+            NumberAnimation { duration: overlay.animDuration(120); easing.type: Easing.OutCubic }
+        }
+        Behavior on height {
+            NumberAnimation { duration: overlay.animDuration(120); easing.type: Easing.OutCubic }
+        }
 
         Rectangle {
             id: backdrop
@@ -147,7 +227,7 @@ Window {
 
         MouseArea {
             anchors.fill: parent
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            acceptedButtons: Qt.LeftButton
             onPressed: function(mouse) {
                 mouse.accepted = true
             }
@@ -159,6 +239,10 @@ Window {
             anchors.margins: 18
             openProgress: overlay.openProgress
             isOpen: overlay.overlayOpen
+            animationSpeedScale: overlay.animationSpeedScale
+            animationsEnabled: overlay.animationsEnabled
+            onFolderBackRequested: overlay.animateBackFromFolder()
+            onSettingsBackRequested: overlay.animateBackFromSettings()
         }
 
         DropArea {
@@ -167,17 +251,11 @@ Window {
 
             onEntered: function(drag) {
                 if (drag.hasUrls) {
-                    overlay.externalDragActive = true
                     drag.accepted = true
                 }
             }
 
-            onExited: {
-                overlay.externalDragActive = false
-            }
-
             onDropped: function(drop) {
-                overlay.externalDragActive = false
                 if (!drop.hasUrls) {
                     return
                 }
@@ -201,6 +279,16 @@ Window {
                 ColorAnimation { duration: 100 }
             }
         }
+
+        MouseArea {
+            z: 1200
+            anchors.fill: parent
+            acceptedButtons: Qt.RightButton
+            onClicked: function(mouse) {
+                mouse.accepted = true
+                overlay.handleBackAction()
+            }
+        }
     }
 
     MouseArea {
@@ -211,6 +299,15 @@ Window {
         onPressed: function(mouse) {
             mouse.accepted = true
         }
-        onClicked: overlay.hideOverlay()
+        onClicked: function(mouse) {
+            if (mouse.button === Qt.RightButton) {
+                overlay.handleBackAction()
+                return
+            }
+            overlay.hideOverlay()
+        }
     }
+
+    onWidthChanged: clampWindowToScreen()
+    onHeightChanged: clampWindowToScreen()
 }

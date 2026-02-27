@@ -11,7 +11,10 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 - Step 5 complete: external Explorer drag-drop into overlay adds file/folder/shortcut entries.
 - Step 6 complete: ring items persist to `%APPDATA%\\RadialDock\\config.json` and reload on startup.
 - Step 7 complete: ring items now render file/folder/app icons via Qt/Windows icon provider.
-- Steps 8-12: planned/scaffolded, currently implementing Step 8 next.
+- Step 8 complete: clicking folder ring items opens inner tile view, and tile click opens file/folder.
+- Step 9 complete: image thumbnails are cached via SQLite + disk cache and shown in folder tiles.
+- Step 10 complete: center-click settings menu with persisted runtime preferences and confirmations.
+- Steps 11-13: planned/scaffolded, currently implementing Step 11 next.
 
 ## Prerequisites
 
@@ -42,6 +45,15 @@ python -m radialdock.app
 
 4. Press `Ctrl+Space` to toggle the overlay near your cursor.
 
+Interaction notes:
+- `Right click` works as a universal back action:
+  - closes folder sub-view if open
+  - otherwise closes the radial overlay
+- Click the center core to open the settings panel.
+- Folder sub-view adapts size to item count.
+- If folder contains more than `50` items, compact list mode is used.
+- Settings are persisted per user at `%APPDATA%\\RadialDock\\config.json`.
+
 PowerShell alternative:
 
 ```powershell
@@ -57,7 +69,7 @@ python -m radialdock.app
 - `python -m radialdock.app --install`
 - `python -m radialdock.app --uninstall`
 
-Install/uninstall is scaffolded now and will be expanded in Step 11 with full shortcuts and UX.
+Install/uninstall is scaffolded now and will be expanded in Step 12 with full shortcuts and UX.
 
 ## Build Single EXE
 
