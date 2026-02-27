@@ -19,15 +19,28 @@ Item {
 
     ListModel {
         id: ringItems
-        ListElement { label: "Steam"; color: "#FF7B6C" }
-        ListElement { label: "Discord"; color: "#8D9BFF" }
-        ListElement { label: "Downloads"; color: "#63D5C2" }
-        ListElement { label: "Photos"; color: "#F9B26E" }
-        ListElement { label: "VS Code"; color: "#62B9FF" }
-        ListElement { label: "Music"; color: "#DD8DFF" }
-        ListElement { label: "Maps"; color: "#83E37B" }
-        ListElement { label: "Docs"; color: "#F0DF87" }
+        ListElement { label: "Steam"; color: "#FF7B6C"; path: ""; kind: "app" }
+        ListElement { label: "Discord"; color: "#8D9BFF"; path: ""; kind: "app" }
+        ListElement { label: "Downloads"; color: "#63D5C2"; path: ""; kind: "folder" }
+        ListElement { label: "Photos"; color: "#F9B26E"; path: ""; kind: "folder" }
+        ListElement { label: "VS Code"; color: "#62B9FF"; path: ""; kind: "app" }
+        ListElement { label: "Music"; color: "#DD8DFF"; path: ""; kind: "folder" }
+        ListElement { label: "Maps"; color: "#83E37B"; path: ""; kind: "app" }
+        ListElement { label: "Docs"; color: "#F0DF87"; path: ""; kind: "folder" }
     }
+
+    readonly property var colorPalette: [
+        "#FF7B6C",
+        "#8D9BFF",
+        "#63D5C2",
+        "#F9B26E",
+        "#62B9FF",
+        "#DD8DFF",
+        "#83E37B",
+        "#F0DF87",
+        "#FF9BC7",
+        "#7EE3FF"
+    ]
 
     function angleForSlot(slotIndex, total) {
         var count = Math.max(total, 1)
@@ -126,6 +139,76 @@ Item {
         dragDistance = 0.0
         removingIndex = -1
         removeIndexPending = -1
+    }
+
+    function localPathFromUrl(urlValue) {
+        var urlText = String(urlValue)
+        if (urlText.indexOf("file:///") !== 0) {
+            return ""
+        }
+        var localPath = decodeURIComponent(urlText.substring(8))
+        return localPath.replace(/\//g, "\\")
+    }
+
+    function fileLabelFromPath(localPath) {
+        var normalized = localPath.replace(/\\/g, "/")
+        var parts = normalized.split("/")
+        if (parts.length === 0) {
+            return localPath
+        }
+        return parts[parts.length - 1] || localPath
+    }
+
+    function kindFromPath(localPath) {
+        var lowerPath = localPath.toLowerCase()
+        if (lowerPath.endsWith(".lnk")) {
+            return "shortcut"
+        }
+        var slashNormalized = localPath.replace(/\\/g, "/")
+        var leaf = slashNormalized.split("/").pop()
+        if (leaf && leaf.indexOf(".") >= 0) {
+            return "file"
+        }
+        return "folder"
+    }
+
+    function colorForPath(localPath) {
+        var hash = 0
+        for (var i = 0; i < localPath.length; i++) {
+            hash = ((hash << 5) - hash) + localPath.charCodeAt(i)
+            hash |= 0
+        }
+        var index = Math.abs(hash) % colorPalette.length
+        return colorPalette[index]
+    }
+
+    function hasPath(localPath) {
+        for (var i = 0; i < ringItems.count; i++) {
+            var entry = ringItems.get(i)
+            if (entry.path === localPath) {
+                return true
+            }
+        }
+        return false
+    }
+
+    function addDroppedUrls(urls) {
+        if (!urls || urls.length === 0) {
+            return
+        }
+        for (var i = 0; i < urls.length; i++) {
+            var localPath = localPathFromUrl(urls[i])
+            if (!localPath || hasPath(localPath)) {
+                continue
+            }
+            var label = fileLabelFromPath(localPath)
+            ringItems.append({
+                "label": label,
+                "color": colorForPath(localPath),
+                "path": localPath,
+                "kind": kindFromPath(localPath)
+            })
+        }
     }
 
     Timer {

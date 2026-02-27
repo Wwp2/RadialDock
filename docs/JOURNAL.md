@@ -2,9 +2,9 @@
 
 ## Current Step
 
-- Current step number: **5**
+- Current step number: **5 (re-validation after hotfix)**
 - Implemented now: **Step 1, Step 2, Step 3, and Step 4**
-- Next: **Step 5 - External Explorer drag/drop into overlay**
+- Next: **Re-verify Step 5 external Explorer drag/drop, then continue to Step 6**
 
 ## Status Snapshot
 
@@ -12,7 +12,7 @@
 - Step 2: Complete
 - Step 3: Complete
 - Step 4: Complete
-- Step 5: In progress
+- Step 5: In progress (hotfix applied, awaiting verification)
 - Steps 6-12: Pending
 
 ## Change Log
@@ -107,3 +107,40 @@
 4. Confirm neighboring items shift smoothly and the dropped item keeps its new position.
 5. Click and hold one item, drag it well outside the ring until center text changes to remove prompt, then release.
 6. Confirm item removes with a short smooth fade/shrink effect.
+
+### 2026-02-27 - Change 10 (Step 5 complete: external Explorer drag/drop)
+
+- Added external drop handling in `ui/Main.qml` via `DropArea` for URL drops from Explorer.
+- Added drop-hover visual state and focus-loss guard while dragging from external windows.
+- Extended `ui/RadialRing.qml` with `addDroppedUrls(urls)` path ingestion.
+- Added URL-to-local path conversion, item label extraction, type tagging (`file/folder/shortcut`), deterministic color selection, and duplicate-path prevention.
+- Updated planning status to mark Step 5 complete and Step 6 in progress.
+
+### 2026-02-27 - Step 5 Verification Instructions (Git Bash)
+
+1. In repo root:
+   - `source .venv/Scripts/activate`
+   - `python -m radialdock.app`
+2. Press `Ctrl+Space` to show the ring.
+3. Open Explorer and drag a file into the ring, then release.
+4. Confirm a new item appears with that file name.
+5. Repeat with:
+   - one folder
+   - one `.lnk` shortcut
+6. Drop the same path again and confirm it is not duplicated.
+
+### 2026-02-27 - Change 11 (Step 5 regression hotfix)
+
+- Fixed overlay auto-hide regression during external drag by removing focus-loss close behavior from `ui/Main.qml`.
+- Kept close behavior through explicit actions: hotkey toggle, Esc, and click on overlay background.
+- Fixed Qt warning by converting deprecated parameter-injection mouse handlers to formal function parameters in `ui/Main.qml`.
+
+### 2026-02-27 - Step 5 Re-Verification Instructions (Git Bash)
+
+1. In repo root:
+   - `source .venv/Scripts/activate`
+   - `python -m radialdock.app`
+2. Press `Ctrl+Space`.
+3. Drag a file/folder from Explorer toward the ring and keep holding mouse.
+4. Confirm overlay stays visible while dragging (does not auto-close).
+5. Drop item into ring and confirm new tile appears.

@@ -8,7 +8,7 @@ This file is the single source of truth for project planning and milestone track
 
 - Date: 2026-02-27
 - Active phase: MVP buildout
-- Current step: **Step 5**
+- Current step: **Step 5 (re-validation after hotfix)**
 - Completed: **Step 1, Step 2, Step 3, Step 4**
 - In progress: **Step 5**
 
@@ -122,14 +122,14 @@ This file is the single source of truth for project planning and milestone track
 
 ## Latest Verification Checklist
 
-### Step 4 (Internal drag reorder + drag-out remove)
+### Step 5 (External Explorer drop into ring, post-hotfix)
 
 1. Launch app with `python -m radialdock.app`.
 2. Press `Ctrl+Space` once near the center of a screen.
-3. Drag one ring item clockwise/counterclockwise across other items.
-4. Confirm neighboring items shift smoothly and order updates on release.
-5. Drag a ring item far outside the ring edge until center text shows remove prompt.
-6. Release mouse and confirm item is removed with a subtle shrink/fade.
+3. Drag a file from Explorer and drop it onto the circular dock.
+4. Confirm a new ring item appears with the file/folder/shortcut name.
+5. Repeat with at least one folder and one `.lnk` shortcut.
+6. Confirm duplicate drops of the same path do not create duplicate items.
 
 ## Risk Register
 

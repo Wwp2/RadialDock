@@ -8,7 +8,8 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 - Step 2 complete: Windows global hotkey (`RegisterHotKey` + `WM_HOTKEY`) toggles overlay centered at cursor.
 - Step 3 complete: polished radial ring sample layout with smooth open/close animation.
 - Step 4 complete: internal ring drag reorder with animated neighbor shifts and drag-out remove.
-- Steps 5-12: planned/scaffolded, currently implementing Step 5 next.
+- Step 5 in progress: external Explorer drag-drop implemented and under re-validation after hotfix.
+- Steps 6-12: planned/scaffolded, Step 6 starts after Step 5 verification.
 
 ## Prerequisites
 

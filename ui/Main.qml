@@ -14,6 +14,7 @@ Window {
     property bool overlayOpen: false
     property real openProgress: 0.0
     property bool closing: false
+    property bool externalDragActive: false
 
     function showAtCursor(cx, cy) {
         var targetX = cx - width / 2
@@ -60,11 +61,8 @@ Window {
         }
     }
 
-    onActiveChanged: {
-        if (!active && visible) {
-            hideOverlay()
-        }
-    }
+    // Keep overlay open while dragging from external apps (Explorer).
+    // Close behavior is handled by Esc, hotkey toggle, or overlay background click.
 
     Shortcut {
         sequence: "Esc"
@@ -150,14 +148,58 @@ Window {
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton
-            onPressed: mouse.accepted = true
+            onPressed: function(mouse) {
+                mouse.accepted = true
+            }
         }
 
         RadialRing {
+            id: ringWidget
             anchors.fill: parent
             anchors.margins: 18
             openProgress: overlay.openProgress
             isOpen: overlay.overlayOpen
+        }
+
+        DropArea {
+            id: externalDropArea
+            anchors.fill: parent
+
+            onEntered: function(drag) {
+                if (drag.hasUrls) {
+                    overlay.externalDragActive = true
+                    drag.accepted = true
+                }
+            }
+
+            onExited: {
+                overlay.externalDragActive = false
+            }
+
+            onDropped: function(drop) {
+                overlay.externalDragActive = false
+                if (!drop.hasUrls) {
+                    return
+                }
+                ringWidget.addDroppedUrls(drop.urls)
+                drop.accepted = true
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: "transparent"
+            border.width: 2
+            border.color: externalDropArea.containsDrag ? "#C76DFFAD" : "#00FFFFFF"
+            opacity: externalDropArea.containsDrag ? 1.0 : 0.0
+
+            Behavior on opacity {
+                NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
+            }
+            Behavior on border.color {
+                ColorAnimation { duration: 100 }
+            }
         }
     }
 
@@ -166,7 +208,9 @@ Window {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         propagateComposedEvents: false
-        onPressed: mouse.accepted = true
+        onPressed: function(mouse) {
+            mouse.accepted = true
+        }
         onClicked: overlay.hideOverlay()
     }
 }
