@@ -5,8 +5,9 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtGui import QCursor, QGuiApplication
+from PySide6.QtGui import QCursor
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtWidgets import QApplication
 
 from radialdock import install
 from radialdock.model import AppModel, AppPaths
@@ -36,8 +37,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def configure_high_dpi() -> None:
     # Qt 6 enables high-DPI scaling by default. Keep rounding predictable.
-    if hasattr(QGuiApplication, "setHighDpiScaleFactorRoundingPolicy"):
-        QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+    if hasattr(QApplication, "setHighDpiScaleFactorRoundingPolicy"):
+        QApplication.setHighDpiScaleFactorRoundingPolicy(
             Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
         )
 
@@ -56,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
         return install.uninstall_self()
 
     configure_high_dpi()
-    app = QGuiApplication(sys.argv)
+    app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
     paths = AppPaths.from_environment(portable=args.portable)

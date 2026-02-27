@@ -8,9 +8,9 @@ This file is the single source of truth for project planning and milestone track
 
 - Date: 2026-02-27
 - Active phase: MVP buildout
-- Current step: **Step 5 (re-validation after hotfix)**
-- Completed: **Step 1, Step 2, Step 3, Step 4**
-- In progress: **Step 5**
+- Current step: **Step 8**
+- Completed: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7**
+- In progress: **Step 8**
 
 ## Status Legend
 
@@ -27,10 +27,10 @@ This file is the single source of truth for project planning and milestone track
 | 2 | Global hotkey + cursor-centered overlay | DONE | `Ctrl+Space` toggles overlay at cursor via `RegisterHotKey/WM_HOTKEY`. |
 | 3 | Radial ring layout + smooth open/close | DONE | Ring layout finalized with polished animation states and sample data. |
 | 4 | Internal drag reorder + drag-out remove | DONE | Dragging reorders with animated neighbor shifts; drag outside removes with subtle animation. |
-| 5 | External Explorer drop into ring | IN PROGRESS | Files/folders/shortcuts dropped from Explorer are added to ring items. |
-| 6 | Persistence for ring items | TODO | Items saved/loaded from `%AppData%\\RadialDock\\config.json`. |
-| 7 | Per-item icons | TODO | Ring items show file/folder/app icons from Windows/Qt icon provider. |
-| 8 | Folder open sub-view + open file | TODO | Clicking folder opens inner folder view tiles; clicking tile opens item. |
+| 5 | External Explorer drop into ring | DONE | Files/folders/shortcuts dropped from Explorer are added to ring items. |
+| 6 | Persistence for ring items | DONE | Items saved/loaded from `%AppData%\\RadialDock\\config.json`. |
+| 7 | Per-item icons | DONE | Ring items show file/folder/app icons from Windows/Qt icon provider. |
+| 8 | Folder open sub-view + open file | IN PROGRESS | Clicking folder opens inner folder view tiles; clicking tile opens item. |
 | 9 | Thumbnail cache (SQLite + disk) | TODO | Thumbnails generated/cached by path + mtime; cache hit path works. |
 | 10 | Refresh-on-open toggle (+optional watch) | TODO | Toggle drives rescan behavior; stale cache handling is graceful. |
 | 11 | Self install/uninstall via same EXE | TODO | `--install`, `--uninstall`, installed marker, copy to `%LocalAppData%\\RadialDock`, Start Menu shortcut. |
@@ -122,14 +122,14 @@ This file is the single source of truth for project planning and milestone track
 
 ## Latest Verification Checklist
 
-### Step 5 (External Explorer drop into ring, post-hotfix)
+### Step 7 (Per-item icons)
 
 1. Launch app with `python -m radialdock.app`.
-2. Press `Ctrl+Space` once near the center of a screen.
-3. Drag a file from Explorer and drop it onto the circular dock.
-4. Confirm a new ring item appears with the file/folder/shortcut name.
-5. Repeat with at least one folder and one `.lnk` shortcut.
-6. Confirm duplicate drops of the same path do not create duplicate items.
+2. Press `Ctrl+Space`.
+3. Confirm each ring item now shows an icon above its label.
+4. Drag a file/folder from Explorer into the ring.
+5. Confirm dropped item also shows an icon (file/folder dependent).
+6. Reopen the app and confirm icons still render for persisted entries.
 
 ## Risk Register
 

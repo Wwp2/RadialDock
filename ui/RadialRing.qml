@@ -10,6 +10,7 @@ Item {
     property int removingIndex: -1
     property int removeIndexPending: -1
     property real dragDistance: 0.0
+    property bool loadedFromSettings: false
 
     readonly property real centerX: width / 2
     readonly property real centerY: height / 2
@@ -19,14 +20,6 @@ Item {
 
     ListModel {
         id: ringItems
-        ListElement { label: "Steam"; color: "#FF7B6C"; path: ""; kind: "app" }
-        ListElement { label: "Discord"; color: "#8D9BFF"; path: ""; kind: "app" }
-        ListElement { label: "Downloads"; color: "#63D5C2"; path: ""; kind: "folder" }
-        ListElement { label: "Photos"; color: "#F9B26E"; path: ""; kind: "folder" }
-        ListElement { label: "VS Code"; color: "#62B9FF"; path: ""; kind: "app" }
-        ListElement { label: "Music"; color: "#DD8DFF"; path: ""; kind: "folder" }
-        ListElement { label: "Maps"; color: "#83E37B"; path: ""; kind: "app" }
-        ListElement { label: "Docs"; color: "#F0DF87"; path: ""; kind: "folder" }
     }
 
     readonly property var colorPalette: [
@@ -129,6 +122,7 @@ Item {
 
         if (hoverIndex >= 0 && hoverIndex !== draggedIndex) {
             ringItems.move(draggedIndex, hoverIndex, 1)
+            schedulePersist()
         }
         resetDragState()
     }
@@ -196,6 +190,7 @@ Item {
         if (!urls || urls.length === 0) {
             return
         }
+        var appendedCount = 0
         for (var i = 0; i < urls.length; i++) {
             var localPath = localPathFromUrl(urls[i])
             if (!localPath || hasPath(localPath)) {
@@ -208,6 +203,67 @@ Item {
                 "path": localPath,
                 "kind": kindFromPath(localPath)
             })
+            appendedCount += 1
+        }
+        if (appendedCount > 0) {
+            schedulePersist()
+        }
+    }
+
+    function serializeItems() {
+        var serialized = []
+        for (var i = 0; i < ringItems.count; i++) {
+            var entry = ringItems.get(i)
+            serialized.push({
+                "label": entry.label || "Item",
+                "color": entry.color || colorPalette[i % colorPalette.length],
+                "path": entry.path || "",
+                "kind": entry.kind || "file"
+            })
+        }
+        return serialized
+    }
+
+    function schedulePersist() {
+        if (!loadedFromSettings) {
+            return
+        }
+        if (typeof appModel === "undefined" || !appModel.saveRingItems) {
+            return
+        }
+        persistTimer.restart()
+    }
+
+    function loadFromSettings() {
+        ringItems.clear()
+
+        if (typeof appModel !== "undefined" && appModel.ringItems && appModel.ringItems.length > 0) {
+            for (var i = 0; i < appModel.ringItems.length; i++) {
+                var item = appModel.ringItems[i]
+                ringItems.append({
+                    "label": item.label || "Item",
+                    "color": item.color || colorPalette[i % colorPalette.length],
+                    "path": item.path || "",
+                    "kind": item.kind || "file"
+                })
+            }
+        }
+
+        loadedFromSettings = true
+    }
+
+    Component.onCompleted: {
+        loadFromSettings()
+    }
+
+    Timer {
+        id: persistTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            if (typeof appModel !== "undefined" && appModel.saveRingItems) {
+                appModel.saveRingItems(serializeItems())
+            }
         }
     }
 
@@ -218,6 +274,7 @@ Item {
         onTriggered: {
             if (ring.removeIndexPending >= 0 && ring.removeIndexPending < ringItems.count) {
                 ringItems.remove(ring.removeIndexPending, 1)
+                ring.schedulePersist()
             }
             ring.resetDragState()
         }
@@ -270,6 +327,8 @@ Item {
             required property int index
             required property string label
             required property color color
+            required property string path
+            required property string kind
             readonly property int total: iconRepeater.count
             readonly property int targetSlot: ring.slotForIndex(index)
             readonly property var targetPos: ring.slotPosition(targetSlot)
@@ -317,14 +376,33 @@ Item {
                     ColorAnimation { duration: 110 }
                 }
 
-                Text {
-                    anchors.centerIn: parent
-                    text: label
-                    color: "#E8F8FF"
-                    font.pixelSize: 9
-                    horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.Wrap
-                    width: parent.width - 10
+                Column {
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    spacing: 2
+
+                    Image {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 26
+                        height: 26
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        source: (typeof appModel !== "undefined" && appModel.iconDataUrl)
+                                ? appModel.iconDataUrl(path || "", kind || "file", label || "Item")
+                                : ""
+                    }
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: parent.width
+                        text: label
+                        color: "#E8F8FF"
+                        font.pixelSize: 9
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 2
+                        elide: Text.ElideRight
+                    }
                 }
             }
 

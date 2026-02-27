@@ -2,9 +2,9 @@
 
 ## Current Step
 
-- Current step number: **5 (re-validation after hotfix)**
-- Implemented now: **Step 1, Step 2, Step 3, and Step 4**
-- Next: **Re-verify Step 5 external Explorer drag/drop, then continue to Step 6**
+- Current step number: **8**
+- Implemented now: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, and Step 7**
+- Next: **Step 8 - Folder open sub-view with clickable file tiles**
 
 ## Status Snapshot
 
@@ -12,8 +12,11 @@
 - Step 2: Complete
 - Step 3: Complete
 - Step 4: Complete
-- Step 5: In progress (hotfix applied, awaiting verification)
-- Steps 6-12: Pending
+- Step 5: Complete
+- Step 6: Complete
+- Step 7: Complete
+- Step 8: In progress
+- Steps 9-12: Pending
 
 ## Change Log
 
@@ -144,3 +147,51 @@
 3. Drag a file/folder from Explorer toward the ring and keep holding mouse.
 4. Confirm overlay stays visible while dragging (does not auto-close).
 5. Drop item into ring and confirm new tile appears.
+
+### 2026-02-27 - Change 12 (Step 6 complete: persistence in config.json)
+
+- Extended `src/radialdock/model.py` with persisted ring item support:
+  - `ringItems` property exposed to QML.
+  - `saveRingItems(QVariantList)` slot to store reordered/added/removed entries.
+  - Default ring items now seeded in model on first run.
+  - Ring item schema now includes `color` in addition to `path`, `label`, and `kind`.
+- Updated `ui/RadialRing.qml` to:
+  - load initial items from `appModel.ringItems` on startup.
+  - debounce-save item state back to `appModel.saveRingItems(...)` after add/reorder/remove.
+- Verified backend persistence by saving to a temp config and reloading through a fresh `AppModel` instance.
+
+### 2026-02-27 - Step 6 Verification Instructions (Git Bash)
+
+1. In repo root:
+   - `source .venv/Scripts/activate`
+   - `python -m radialdock.app`
+2. Press `Ctrl+Space`.
+3. Make at least one change to the ring:
+   - reorder an item, or
+   - remove an item, or
+   - drop a new file/folder from Explorer.
+4. Close app process and start again:
+   - `python -m radialdock.app`
+5. Confirm the ring state is the same as before restart.
+6. Optional config check:
+   - open `%APPDATA%\\RadialDock\\config.json`
+   - confirm `items` matches the visible ring order/content.
+
+### 2026-02-27 - Change 13 (Step 7 complete: per-item icons)
+
+- Added Windows/Qt icon extraction in `src/radialdock/model.py` using `QFileIconProvider`.
+- Exposed `iconDataUrl(path, kind, label)` slot for QML to request icon images as base64 PNG data URLs.
+- Added in-memory icon caching to reduce repeated icon conversion cost.
+- Updated app bootstrap in `src/radialdock/app.py` to use `QApplication` (Qt Widgets support required for icon provider).
+- Updated `ui/RadialRing.qml` tile delegate to render icons above labels for both default and dropped items.
+
+### 2026-02-27 - Step 7 Verification Instructions (Git Bash)
+
+1. In repo root:
+   - `source .venv/Scripts/activate`
+   - `python -m radialdock.app`
+2. Press `Ctrl+Space`.
+3. Confirm all ring items show icons (not text-only circles).
+4. Drag a file and a folder from Explorer into the ring.
+5. Confirm both new entries display icons appropriate to type.
+6. Restart app and confirm icons still display for persisted items.
