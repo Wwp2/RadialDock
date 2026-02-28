@@ -14,6 +14,7 @@ Item {
     property int radialItemMoveBaseDuration: 500
     property real animationSpeedScale: 0.2
     property bool animationsEnabled: true
+    property bool mainRevealActive: false
     property int folderListFallbackThreshold: (typeof appModel !== "undefined" && appModel)
                                             ? appModel.folderCompactThreshold
                                             : 50
@@ -493,11 +494,11 @@ Item {
                    : (dragging ? 1.12 : (0.65 + (0.35 * revealValue)))
 
             Behavior on x {
-                enabled: !dragging
+                enabled: !dragging && !ring.mainRevealActive
                 NumberAnimation { duration: ring.animDuration(ring.radialItemMoveBaseDuration); easing.type: Easing.OutCubic }
             }
             Behavior on y {
-                enabled: !dragging
+                enabled: !dragging && !ring.mainRevealActive
                 NumberAnimation { duration: ring.animDuration(ring.radialItemMoveBaseDuration); easing.type: Easing.OutCubic }
             }
             Behavior on opacity {

@@ -437,3 +437,36 @@
   - `undefined`
   - `null`
 - Result: quitting the app should no longer print property access errors for `animationSpeedScale`, `animationsEnabled`, `folderCompactThreshold`, or `iconDataUrl`.
+
+### 2026-02-28 - Change 32 (Single main reveal animation path)
+
+- Consolidated the main radial-menu return/open transition in `ui/Main.qml` into one shared function: `playMainRingReveal()`.
+- Returning from folder view and settings view now routes through the same shared reveal path via `returnToMainRing(...)`.
+- Added `mainRevealActive` state in `ui/Main.qml` so the return/open transition uses only the main reveal animation.
+- Updated `ui/RadialRing.qml` to disable icon position (`x`/`y`) motion behaviors while the main reveal is active.
+- Result: when coming back from folder/settings to the main radial menu, the icons should snap into their base layout first and then use the single shared main reveal animation, without the extra wiggle-style position animation.
+
+### 2026-02-28 - Change 33 (Smooth backdrop growth, instant panel resize)
+
+- Removed the stage width/height resize animation in `ui/Main.qml` when opening larger folder/settings views.
+- Added a dedicated circular backdrop size animation instead:
+  - the content area resizes immediately
+  - the round menu background expands smoothly to the new size
+- This reduces the jerky resize/shake effect when opening settings or larger folder panels while preserving a smoother visual transition.
+
+### 2026-02-28 - Change 34 (No backdrop shrink animation on return + tuning knob)
+
+- Updated `ui/Main.qml` so the circular backdrop resize snaps back immediately when returning from:
+  - folder view
+  - settings view
+- The return path now goes straight into the main ring reveal animation without a second backdrop shrink animation.
+- Added a dedicated tuning parameter for large-view backdrop growth speed:
+  - `backdropResizeBaseDuration`
+- This controls the circle expansion speed when opening larger views and is still scaled by the global `animationSpeedScale` setting.
+
+### 2026-02-28 - Change 35 (Backdrop can stretch for rectangular views again)
+
+- Updated the main backdrop in `ui/Main.qml` to animate width and height separately instead of staying a fixed circle.
+- The background can now widen or grow taller to better cover rectangular panels like the settings view.
+- The shape still keeps rounded ends using `radius: Math.min(width, height) / 2`, so it becomes an oval/capsule instead of a sharp rectangle.
+- Return-to-main behavior still snaps the backdrop back immediately before the main reveal animation.

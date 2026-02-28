@@ -7,6 +7,7 @@ Window {
     property int outerPadding: 110
     property int baseStageWidth: 390
     property int baseStageHeight: 390
+    property int backdropResizeBaseDuration: 600
     property real animationSpeedScale: (typeof appModel !== "undefined" && appModel && appModel.animationSpeedScale)
                                        ? appModel.animationSpeedScale
                                        : 0.2
@@ -34,6 +35,8 @@ Window {
     property bool overlayOpen: false
     property real openProgress: 0.0
     property bool closing: false
+    property bool mainRevealActive: false
+    property bool snapBackdropResize: false
 
     function animDuration(baseDuration) {
         if (!animationsEnabled) {
@@ -61,32 +64,51 @@ Window {
         hideOverlay()
     }
 
-    function animateBackFromFolder() {
-        if (!ringWidget || !ringWidget.folderOpen) {
-            return
-        }
-        ringWidget.applyFolderClosed()
+    function playMainRingReveal() {
         closing = false
         overlayOpen = true
+        mainRevealActive = true
         closeAnim.stop()
         opacity = 0.0
         openProgress = 0.0
         stage.scale = 0.82
+        visible = true
+        raise()
+        requestActivate()
         openAnim.restart()
     }
 
-    function animateBackFromSettings() {
-        if (!ringWidget || !ringWidget.settingsOpen) {
+    function returnToMainRing(source) {
+        if (!ringWidget) {
             return
         }
-        ringWidget.applySettingsClosed()
-        closing = false
-        overlayOpen = true
-        closeAnim.stop()
-        opacity = 0.0
-        openProgress = 0.0
-        stage.scale = 0.82
-        openAnim.restart()
+
+        mainRevealActive = true
+        if (source === "folder") {
+            if (!ringWidget.folderOpen) {
+                mainRevealActive = false
+                return
+            }
+            snapBackdropResize = true
+            ringWidget.applyFolderClosed()
+        } else if (source === "settings") {
+            if (!ringWidget.settingsOpen) {
+                mainRevealActive = false
+                return
+            }
+            snapBackdropResize = true
+            ringWidget.applySettingsClosed()
+        }
+
+        playMainRingReveal()
+    }
+
+    function animateBackFromFolder() {
+        returnToMainRing("folder")
+    }
+
+    function animateBackFromSettings() {
+        returnToMainRing("settings")
     }
 
     function showAtCursor(cx, cy) {
@@ -97,16 +119,8 @@ Window {
         var targetY = cy - height / 2
         x = Math.max(0, Math.min(targetX, Screen.width - width))
         y = Math.max(0, Math.min(targetY, Screen.height - height))
-        overlayOpen = true
-        closing = false
-        openProgress = 0.0
-        stage.scale = 0.82
-        opacity = 0.0
-        visible = true
-        raise()
-        requestActivate()
-        closeAnim.stop()
-        openAnim.restart()
+        snapBackdropResize = false
+        playMainRingReveal()
     }
 
     function hideOverlay() {
@@ -115,6 +129,8 @@ Window {
         }
         closing = true
         overlayOpen = false
+        mainRevealActive = false
+        snapBackdropResize = false
         openAnim.stop()
         closeAnim.restart()
     }
@@ -171,6 +187,10 @@ Window {
             duration: overlay.animDuration(300)
             easing.type: Easing.OutCubic
         }
+        onFinished: {
+            overlay.mainRevealActive = false
+            overlay.snapBackdropResize = false
+        }
     }
 
     ParallelAnimation {
@@ -208,18 +228,32 @@ Window {
         anchors.centerIn: parent
         width: overlay.targetStageWidth
         height: overlay.targetStageHeight
+        property real targetBackdropWidth: width
+        property real targetBackdropHeight: height
+        property real backdropVisualWidth: targetBackdropWidth
+        property real backdropVisualHeight: targetBackdropHeight
 
-        Behavior on width {
-            NumberAnimation { duration: overlay.animDuration(120); easing.type: Easing.OutCubic }
+        Behavior on backdropVisualWidth {
+            enabled: overlay.animationsEnabled && !overlay.snapBackdropResize
+            NumberAnimation {
+                duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
+                easing.type: Easing.OutCubic
+            }
         }
-        Behavior on height {
-            NumberAnimation { duration: overlay.animDuration(120); easing.type: Easing.OutCubic }
+        Behavior on backdropVisualHeight {
+            enabled: overlay.animationsEnabled && !overlay.snapBackdropResize
+            NumberAnimation {
+                duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
+                easing.type: Easing.OutCubic
+            }
         }
 
         Rectangle {
             id: backdrop
-            anchors.fill: parent
-            radius: width / 2
+            anchors.centerIn: parent
+            width: stage.backdropVisualWidth
+            height: stage.backdropVisualHeight
+            radius: Math.min(width, height) / 2
             gradient: Gradient {
                 GradientStop { position: 0.0; color: "#D9162130" }
                 GradientStop { position: 1.0; color: "#A40F151E" }
@@ -244,6 +278,7 @@ Window {
             isOpen: overlay.overlayOpen
             animationSpeedScale: overlay.animationSpeedScale
             animationsEnabled: overlay.animationsEnabled
+            mainRevealActive: overlay.mainRevealActive
             onFolderBackRequested: overlay.animateBackFromFolder()
             onSettingsBackRequested: overlay.animateBackFromSettings()
         }
