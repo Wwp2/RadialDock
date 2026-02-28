@@ -7,10 +7,10 @@ Window {
     property int outerPadding: 110
     property int baseStageWidth: 390
     property int baseStageHeight: 390
-    property real animationSpeedScale: (typeof appModel !== "undefined" && appModel.animationSpeedScale)
+    property real animationSpeedScale: (typeof appModel !== "undefined" && appModel && appModel.animationSpeedScale)
                                        ? appModel.animationSpeedScale
                                        : 0.2
-    property bool animationsEnabled: (typeof appModel !== "undefined")
+    property bool animationsEnabled: (typeof appModel !== "undefined" && appModel)
                                      ? appModel.animationsEnabled
                                      : true
     readonly property int maxStageWidth: Math.max(baseStageWidth, Screen.width - outerPadding - 20)
@@ -90,7 +90,7 @@ Window {
     }
 
     function showAtCursor(cx, cy) {
-        if (typeof appModel !== "undefined" && appModel.refreshEnabledData) {
+        if (typeof appModel !== "undefined" && appModel && appModel.refreshEnabledData) {
             appModel.refreshEnabledData()
         }
         var targetX = cx - width / 2

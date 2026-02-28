@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, Qt, Signal, Slot, QProcess
 from PySide6.QtGui import QCursor
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication
@@ -18,13 +18,33 @@ class OverlayController(QObject):
     hotkeyTriggered = Signal(int, int)
     hideRequested = Signal()
 
-    def __init__(self, model: AppModel) -> None:
+    def __init__(self, model: AppModel, launch_args: list[str]) -> None:
         super().__init__()
         self._model = model
+        self._launch_args = list(launch_args)
 
     def on_hotkey(self) -> None:
         pos = QCursor.pos()
         self.hotkeyTriggered.emit(pos.x(), pos.y())
+
+    @Slot()
+    def quitApp(self) -> None:
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
+
+    @Slot()
+    def restartApp(self) -> None:
+        if getattr(sys, "frozen", False):
+            program = sys.executable
+            arguments = self._launch_args
+        else:
+            program = sys.executable
+            arguments = ["-m", "radialdock.app", *self._launch_args]
+
+        started = QProcess.startDetached(program, arguments)
+        if started:
+            self.quitApp()
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -49,7 +69,8 @@ def resolve_ui_dir() -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv or sys.argv[1:])
+    launch_args = list(argv or sys.argv[1:])
+    args = parse_args(launch_args)
 
     if args.install:
         return install.install_self()
@@ -62,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
 
     paths = AppPaths.from_environment(portable=args.portable)
     model = AppModel(paths=paths)
-    controller = OverlayController(model)
+    controller = OverlayController(model, launch_args)
 
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("backend", controller)

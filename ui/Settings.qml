@@ -17,7 +17,7 @@ Item {
     }
 
     function commitSpeed() {
-        if (typeof appModel === "undefined") {
+        if (typeof appModel === "undefined" || !appModel) {
             return
         }
         var parsed = Number.parseFloat(speedField.text)
@@ -31,7 +31,7 @@ Item {
     }
 
     function commitThreshold() {
-        if (typeof appModel === "undefined") {
+        if (typeof appModel === "undefined" || !appModel) {
             return
         }
         var parsed = Number.parseInt(thresholdField.text)
@@ -45,7 +45,7 @@ Item {
     }
 
     function refreshFromModel() {
-        if (typeof appModel === "undefined") {
+        if (typeof appModel === "undefined" || !appModel) {
             return
         }
         speedField.text = Number(appModel.animationSpeedScale).toFixed(2)
@@ -151,7 +151,7 @@ Item {
             TextField {
                 id: speedField
                 width: 90
-                text: typeof appModel !== "undefined"
+                text: (typeof appModel !== "undefined" && appModel)
                       ? Number(appModel.animationSpeedScale).toFixed(2)
                       : "0.20"
                 placeholderText: "0.10 - 10.00"
@@ -185,7 +185,7 @@ Item {
                 checked: true
                 anchors.verticalCenter: parent.verticalCenter
                 onToggled: {
-                    if (typeof appModel !== "undefined") {
+                    if (typeof appModel !== "undefined" && appModel) {
                         appModel.animationsEnabled = checked
                     }
                 }
@@ -214,7 +214,7 @@ Item {
             TextField {
                 id: thresholdField
                 width: 90
-                text: typeof appModel !== "undefined"
+                text: (typeof appModel !== "undefined" && appModel)
                       ? String(appModel.folderCompactThreshold)
                       : "50"
                 placeholderText: "1 - 5000"
@@ -248,7 +248,7 @@ Item {
                 checked: true
                 anchors.verticalCenter: parent.verticalCenter
                 onToggled: {
-                    if (typeof appModel !== "undefined") {
+                    if (typeof appModel !== "undefined" && appModel) {
                         appModel.automaticIconRefresh = checked
                     }
                 }
@@ -282,7 +282,7 @@ Item {
                 checked: true
                 anchors.verticalCenter: parent.verticalCenter
                 onToggled: {
-                    if (typeof appModel !== "undefined") {
+                    if (typeof appModel !== "undefined" && appModel) {
                         appModel.automaticFolderRefresh = checked
                     }
                 }
@@ -314,7 +314,7 @@ Item {
                 text: "Manual Refresh"
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: {
-                    if (typeof appModel !== "undefined" && appModel.manualRefreshEnabled) {
+                    if (typeof appModel !== "undefined" && appModel && appModel.manualRefreshEnabled) {
                         appModel.manualRefreshEnabled()
                     }
                 }
@@ -418,6 +418,54 @@ Item {
             ActionButton {
                 text: "Cancel"
                 onClicked: settings.confirmReset = false
+            }
+        }
+
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: "#33596F7A"
+        }
+
+        Text {
+            text: "App Control"
+            color: "#C6DCE8"
+            font.pixelSize: 12
+            font.bold: true
+        }
+
+        Row {
+            width: parent.width
+            height: 34
+            spacing: 8
+
+            ActionButton {
+                text: "Restart App"
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: {
+                    if (typeof backend !== "undefined" && backend && backend.restartApp) {
+                        backend.restartApp()
+                    }
+                }
+            }
+
+            ActionButton {
+                text: "Quit App"
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: {
+                    if (typeof backend !== "undefined" && backend && backend.quitApp) {
+                        backend.quitApp()
+                    }
+                }
+            }
+
+            Text {
+                text: "Restart relaunches the app immediately. Quit fully closes it."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                width: parent.width - 210
+                wrapMode: Text.WordWrap
+                anchors.verticalCenter: parent.verticalCenter
             }
         }
     }

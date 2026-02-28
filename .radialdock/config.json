@@ -1,0 +1,59 @@
+{
+  "hotkey": "Ctrl+Space",
+  "automatic_icon_refresh": true,
+  "automatic_folder_refresh": true,
+  "animation_speed_scale": 0.2,
+  "animations_enabled": true,
+  "folder_compact_threshold": 50,
+  "folder_cache": {},
+  "items": [
+    {
+      "path": "",
+      "label": "Steam",
+      "kind": "app",
+      "color": "#FF7B6C"
+    },
+    {
+      "path": "",
+      "label": "Discord",
+      "kind": "app",
+      "color": "#8D9BFF"
+    },
+    {
+      "path": "",
+      "label": "Downloads",
+      "kind": "folder",
+      "color": "#63D5C2"
+    },
+    {
+      "path": "",
+      "label": "Photos",
+      "kind": "folder",
+      "color": "#F9B26E"
+    },
+    {
+      "path": "",
+      "label": "VS Code",
+      "kind": "app",
+      "color": "#62B9FF"
+    },
+    {
+      "path": "",
+      "label": "Music",
+      "kind": "folder",
+      "color": "#DD8DFF"
+    },
+    {
+      "path": "",
+      "label": "Maps",
+      "kind": "app",
+      "color": "#83E37B"
+    },
+    {
+      "path": "",
+      "label": "Docs",
+      "kind": "folder",
+      "color": "#F0DF87"
+    }
+  ]
+}

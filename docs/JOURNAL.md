@@ -417,3 +417,23 @@
 
 - Reduced line spacing for the two longer automatic refresh helper texts in `ui/Settings.qml`.
 - This keeps the wrapped text more compact vertically and avoids the slight overlap in those rows.
+
+### 2026-02-28 - Change 30 (Settings app control actions)
+
+- Added app lifecycle controls to the bottom of `ui/Settings.qml` in a dedicated `App Control` section:
+  - `Restart App`
+  - `Quit App`
+- Added backend slots in `src/radialdock/app.py`:
+  - `quitApp()`
+  - `restartApp()`
+- `Restart App` launches a new instance using the current launch mode/args, then exits the current process.
+- Increased settings panel height in `ui/RadialRing.qml` so the new controls fit without crowding.
+
+### 2026-02-28 - Change 31 (Clean shutdown QML null-guard fix)
+
+- Fixed shutdown-time QML warnings triggered after `Quit App`.
+- Root cause: on teardown, `appModel`/`backend` context properties can become `null` before bindings stop evaluating.
+- Updated `ui/Main.qml`, `ui/RadialRing.qml`, and `ui/Settings.qml` to guard against both:
+  - `undefined`
+  - `null`
+- Result: quitting the app should no longer print property access errors for `animationSpeedScale`, `animationsEnabled`, `folderCompactThreshold`, or `iconDataUrl`.

@@ -14,7 +14,7 @@ Item {
     property int radialItemMoveBaseDuration: 500
     property real animationSpeedScale: 0.2
     property bool animationsEnabled: true
-    property int folderListFallbackThreshold: (typeof appModel !== "undefined")
+    property int folderListFallbackThreshold: (typeof appModel !== "undefined" && appModel)
                                             ? appModel.folderCompactThreshold
                                             : 50
     property int draggedIndex: -1
@@ -42,7 +42,7 @@ Item {
                                            ? 460
                                            : Math.max(180, folderGridRows * 104 + 58)
     readonly property int settingsPanelWidth: 420
-    readonly property int settingsPanelHeight: 470
+    readonly property int settingsPanelHeight: 550
     readonly property int preferredStageWidth: settingsOpen
                                            ? Math.max(390, settingsPanelWidth + 56)
                                            : (folderOpen ? Math.max(390, folderPanelWidth + 56) : 390)
@@ -238,7 +238,7 @@ Item {
             return
         }
         if (entry.kind === "folder") {
-            if (typeof appModel === "undefined" || !appModel.listFolderEntries) {
+            if (typeof appModel === "undefined" || !appModel || !appModel.listFolderEntries) {
                 return
             }
             settingsOpen = false
@@ -247,7 +247,7 @@ Item {
             folderOpen = true
             return
         }
-        if (typeof appModel !== "undefined" && appModel.openPath) {
+        if (typeof appModel !== "undefined" && appModel && appModel.openPath) {
             appModel.openPath(entry.path)
         }
     }
@@ -256,7 +256,7 @@ Item {
         if (!path) {
             return
         }
-        if (typeof appModel !== "undefined" && appModel.openPath) {
+        if (typeof appModel !== "undefined" && appModel && appModel.openPath) {
             appModel.openPath(path)
         }
     }
@@ -280,7 +280,7 @@ Item {
     }
 
     function kindFromPath(localPath) {
-        if (typeof appModel !== "undefined" && appModel.pathKind) {
+        if (typeof appModel !== "undefined" && appModel && appModel.pathKind) {
             return appModel.pathKind(localPath)
         }
         var lowerPath = localPath.toLowerCase()
@@ -357,7 +357,7 @@ Item {
         if (!loadedFromSettings) {
             return
         }
-        if (typeof appModel === "undefined" || !appModel.saveRingItems) {
+        if (typeof appModel === "undefined" || !appModel || !appModel.saveRingItems) {
             return
         }
         persistTimer.restart()
@@ -366,7 +366,7 @@ Item {
     function loadFromSettings() {
         ringItems.clear()
 
-        if (typeof appModel !== "undefined" && appModel.ringItems && appModel.ringItems.length > 0) {
+        if (typeof appModel !== "undefined" && appModel && appModel.ringItems && appModel.ringItems.length > 0) {
             for (var i = 0; i < appModel.ringItems.length; i++) {
                 var item = appModel.ringItems[i]
                 ringItems.append({
@@ -401,7 +401,7 @@ Item {
         interval: 150
         repeat: false
         onTriggered: {
-            if (typeof appModel !== "undefined" && appModel.saveRingItems) {
+            if (typeof appModel !== "undefined" && appModel && appModel.saveRingItems) {
                 ring.skipNextModelSync = true
                 appModel.saveRingItems(serializeItems())
             }
@@ -529,7 +529,7 @@ Item {
                         height: 26
                         fillMode: Image.PreserveAspectFit
                         smooth: true
-                        source: (typeof appModel !== "undefined" && appModel.iconDataUrl)
+                        source: (typeof appModel !== "undefined" && appModel && appModel.iconDataUrl)
                                 ? appModel.iconDataUrl(path || "", kind || "file", label || "Item")
                                 : ""
                     }
@@ -699,12 +699,12 @@ Item {
         opacity: ring.settingsOpen ? 1.0 : 0.0
         z: 320
         onClearAllConfirmed: {
-            if (typeof appModel !== "undefined" && appModel.clearRingItems) {
+            if (typeof appModel !== "undefined" && appModel && appModel.clearRingItems) {
                 appModel.clearRingItems()
             }
         }
         onResetDefaultsConfirmed: {
-            if (typeof appModel !== "undefined" && appModel.resetQuickSettings) {
+            if (typeof appModel !== "undefined" && appModel && appModel.resetQuickSettings) {
                 appModel.resetQuickSettings()
             }
         }
