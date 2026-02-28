@@ -43,7 +43,7 @@ Item {
                                            ? 460
                                            : Math.max(180, folderGridRows * 104 + 58)
     readonly property int settingsPanelWidth: 420
-    readonly property int settingsPanelHeight: 550
+    readonly property int settingsPanelHeight: 600
     readonly property int preferredStageWidth: settingsOpen
                                            ? Math.max(390, settingsPanelWidth + 56)
                                            : (folderOpen ? Math.max(390, folderPanelWidth + 56) : 390)
@@ -230,6 +230,23 @@ Item {
         settingsOpen = false
     }
 
+    function resetToMainView() {
+        settingsOpen = false
+        folderOpen = false
+        folderTitle = ""
+        folderEntries = []
+        resetDragState()
+    }
+
+    function maybeCloseAfterLaunch() {
+        if (typeof appModel === "undefined" || !appModel || !appModel.closeAfterLaunch) {
+            return
+        }
+        if (typeof backend !== "undefined" && backend && backend.requestHide) {
+            backend.requestHide()
+        }
+    }
+
     function activateItem(itemIndex) {
         if (itemIndex < 0 || itemIndex >= ringItems.count) {
             return
@@ -249,7 +266,9 @@ Item {
             return
         }
         if (typeof appModel !== "undefined" && appModel && appModel.openPath) {
-            appModel.openPath(entry.path)
+            if (appModel.openPath(entry.path)) {
+                maybeCloseAfterLaunch()
+            }
         }
     }
 
@@ -258,7 +277,9 @@ Item {
             return
         }
         if (typeof appModel !== "undefined" && appModel && appModel.openPath) {
-            appModel.openPath(path)
+            if (appModel.openPath(path)) {
+                maybeCloseAfterLaunch()
+            }
         }
     }
 

@@ -115,6 +115,9 @@ Window {
         if (typeof appModel !== "undefined" && appModel && appModel.refreshEnabledData) {
             appModel.refreshEnabledData()
         }
+        if (ringWidget) {
+            ringWidget.resetToMainView()
+        }
         var targetX = cx - width / 2
         var targetY = cy - height / 2
         x = Math.max(0, Math.min(targetX, Screen.width - width))
@@ -219,6 +222,9 @@ Window {
         onFinished: {
             overlay.visible = false
             overlay.closing = false
+            if (ringWidget) {
+                ringWidget.resetToMainView()
+            }
         }
     }
 

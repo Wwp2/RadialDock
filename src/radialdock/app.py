@@ -28,6 +28,10 @@ class OverlayController(QObject):
         self.hotkeyTriggered.emit(pos.x(), pos.y())
 
     @Slot()
+    def requestHide(self) -> None:
+        self.hideRequested.emit()
+
+    @Slot()
     def quitApp(self) -> None:
         app = QApplication.instance()
         if app is not None:

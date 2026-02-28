@@ -470,3 +470,31 @@
 - The background can now widen or grow taller to better cover rectangular panels like the settings view.
 - The shape still keeps rounded ends using `radius: Math.min(width, height) / 2`, so it becomes an oval/capsule instead of a sharp rectangle.
 - Return-to-main behavior still snaps the backdrop back immediately before the main reveal animation.
+
+### 2026-02-28 - Change 36 (Optional close-after-launch behavior)
+
+- Added a persisted `Close after launch` setting in `src/radialdock/model.py` (default: on).
+- Added a new settings toggle in `ui/Settings.qml` under `Automatic folder refresh`.
+- Behavior when enabled:
+  - opening a non-folder ring item hides the radial menu immediately after launch
+  - opening an item from inside folder view also hides the radial menu immediately after launch
+  - opening a folder from the main ring does not close the menu, so the folder view can still open
+- Added `requestHide()` to `src/radialdock/app.py` so QML can dismiss the overlay after successful launches.
+- Increased settings panel height in `ui/RadialRing.qml` to fit the additional row.
+
+### 2026-02-28 - Change 37 (Reset to main view after overlay closes)
+
+- Fixed overlay state so the next menu open always starts from the main radial view after the overlay is closed.
+- Added `resetToMainView()` in `ui/RadialRing.qml` to clear:
+  - open folder view
+  - open settings view
+  - folder title / entries
+  - transient drag state
+- Wired `ui/Main.qml` to call that reset after the close animation finishes.
+- Result: if a launched item closes the menu from inside folder view, reopening the menu no longer returns to that old folder state.
+
+### 2026-02-28 - Change 38 (Reset to main view on reopen as hard guarantee)
+
+- Added a second state reset in `ui/Main.qml` inside `showAtCursor(...)`.
+- The overlay now resets `ringWidget` to the main radial view before positioning and replaying the open animation.
+- This guarantees every hotkey reopen starts from the main ring, even if a previous close path did not fully settle before the next open.

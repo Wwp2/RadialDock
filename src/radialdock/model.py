@@ -18,6 +18,7 @@ DEFAULT_ANIMATION_SPEED_SCALE = 0.2
 MIN_ANIMATION_SPEED_SCALE = 0.1
 MAX_ANIMATION_SPEED_SCALE = 10.0
 DEFAULT_ANIMATIONS_ENABLED = True
+DEFAULT_CLOSE_AFTER_LAUNCH = True
 DEFAULT_FOLDER_COMPACT_THRESHOLD = 50
 MIN_FOLDER_COMPACT_THRESHOLD = 1
 MAX_FOLDER_COMPACT_THRESHOLD = 5000
@@ -69,6 +70,7 @@ class Settings:
     hotkey: str = "Ctrl+Space"
     automatic_icon_refresh: bool = True
     automatic_folder_refresh: bool = True
+    close_after_launch: bool = DEFAULT_CLOSE_AFTER_LAUNCH
     animation_speed_scale: float = DEFAULT_ANIMATION_SPEED_SCALE
     animations_enabled: bool = DEFAULT_ANIMATIONS_ENABLED
     folder_compact_threshold: int = DEFAULT_FOLDER_COMPACT_THRESHOLD
@@ -96,6 +98,7 @@ class AppPaths:
 class AppModel(QObject):
     automaticIconRefreshChanged = Signal()
     automaticFolderRefreshChanged = Signal()
+    closeAfterLaunchChanged = Signal()
     ringItemsChanged = Signal()
     animationSpeedScaleChanged = Signal()
     animationsEnabledChanged = Signal()
@@ -137,6 +140,7 @@ class AppModel(QObject):
                 automatic_folder_refresh=bool(
                     raw.get("automatic_folder_refresh", raw.get("refresh_on_open", True))
                 ),
+                close_after_launch=bool(raw.get("close_after_launch", DEFAULT_CLOSE_AFTER_LAUNCH)),
                 animation_speed_scale=self._sanitize_animation_speed(
                     raw.get("animation_speed_scale", DEFAULT_ANIMATION_SPEED_SCALE)
                 ),
@@ -245,6 +249,17 @@ class AppModel(QObject):
     def get_animation_speed_scale(self) -> float:
         return self.settings.animation_speed_scale
 
+    def get_close_after_launch(self) -> bool:
+        return self.settings.close_after_launch
+
+    def set_close_after_launch(self, value: bool) -> None:
+        normalized = bool(value)
+        if self.settings.close_after_launch == normalized:
+            return
+        self.settings.close_after_launch = normalized
+        self._save_settings(self.settings)
+        self.closeAfterLaunchChanged.emit()
+
     def set_animation_speed_scale(self, value: float) -> None:
         sanitized = self._sanitize_animation_speed(value)
         if self.settings.animation_speed_scale == sanitized:
@@ -309,12 +324,14 @@ class AppModel(QObject):
     def resetQuickSettings(self) -> None:
         self.settings.automatic_icon_refresh = True
         self.settings.automatic_folder_refresh = True
+        self.settings.close_after_launch = DEFAULT_CLOSE_AFTER_LAUNCH
         self.settings.animation_speed_scale = DEFAULT_ANIMATION_SPEED_SCALE
         self.settings.animations_enabled = DEFAULT_ANIMATIONS_ENABLED
         self.settings.folder_compact_threshold = DEFAULT_FOLDER_COMPACT_THRESHOLD
         self._save_settings(self.settings)
         self.automaticIconRefreshChanged.emit()
         self.automaticFolderRefreshChanged.emit()
+        self.closeAfterLaunchChanged.emit()
         self.animationSpeedScaleChanged.emit()
         self.animationsEnabledChanged.emit()
         self.folderCompactThresholdChanged.emit()
@@ -513,6 +530,13 @@ class AppModel(QObject):
         get_automatic_folder_refresh,
         set_automatic_folder_refresh,
         notify=automaticFolderRefreshChanged,
+    )
+
+    closeAfterLaunch = Property(
+        bool,
+        get_close_after_launch,
+        set_close_after_launch,
+        notify=closeAfterLaunchChanged,
     )
 
     ringItems = Property(

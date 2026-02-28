@@ -52,6 +52,7 @@ Interaction notes:
   - otherwise closes the radial overlay
 - Click the center core to open the settings panel.
 - Settings now include `Restart App` and `Quit App` controls for full process control.
+- Settings include a `Close after launch` toggle to optionally dismiss the menu after opening real items.
 - Folder sub-view adapts size to item count.
 - If folder contains more than `50` items, compact list mode is used.
 - Settings are persisted per user at `%APPDATA%\\RadialDock\\config.json`.

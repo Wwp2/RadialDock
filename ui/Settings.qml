@@ -53,6 +53,7 @@ Item {
         animationsSwitch.checked = !!appModel.animationsEnabled
         iconRefreshSwitch.checked = !!appModel.automaticIconRefresh
         folderRefreshSwitch.checked = !!appModel.automaticFolderRefresh
+        closeAfterLaunchSwitch.checked = !!appModel.closeAfterLaunch
     }
 
     onVisibleChanged: {
@@ -76,6 +77,9 @@ Item {
             settings.refreshFromModel()
         }
         function onAutomaticFolderRefreshChanged() {
+            settings.refreshFromModel()
+        }
+        function onCloseAfterLaunchChanged() {
             settings.refreshFromModel()
         }
     }
@@ -289,6 +293,40 @@ Item {
             }
             Text {
                 text: "On = rescan ring folders on menu open. Off = use cached listings until Manual Refresh."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                width: parent.width - 270
+                wrapMode: Text.WordWrap
+                lineHeight: 0.8
+                lineHeightMode: Text.ProportionalHeight
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        Row {
+            width: parent.width
+            height: 42
+            spacing: 10
+
+            Text {
+                text: "Close after launch"
+                color: "#D7E8F4"
+                font.pixelSize: 12
+                width: 150
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Switch {
+                id: closeAfterLaunchSwitch
+                checked: true
+                anchors.verticalCenter: parent.verticalCenter
+                onToggled: {
+                    if (typeof appModel !== "undefined" && appModel) {
+                        appModel.closeAfterLaunch = checked
+                    }
+                }
+            }
+            Text {
+                text: "On = hide the menu after opening a real item. Off = keep it open. Opening folders stays open."
                 color: "#8DA7B9"
                 font.pixelSize: 10
                 width: parent.width - 270
