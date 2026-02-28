@@ -14,7 +14,8 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 - Step 8 complete: clicking folder ring items opens inner tile view, and tile click opens file/folder.
 - Step 9 complete: image thumbnails are cached via SQLite + disk cache and shown in folder tiles.
 - Step 10 complete: center-click settings menu with persisted runtime preferences and confirmations.
-- Steps 11-13: planned/scaffolded, currently implementing Step 11 next.
+- Step 11 complete: separate automatic icon/folder refresh controls plus manual refresh behavior.
+- Steps 12-13: planned/scaffolded, currently implementing Step 12 next.
 
 ## Prerequisites
 
@@ -53,6 +54,8 @@ Interaction notes:
 - Folder sub-view adapts size to item count.
 - If folder contains more than `50` items, compact list mode is used.
 - Settings are persisted per user at `%APPDATA%\\RadialDock\\config.json`.
+- Automatic refresh settings let users avoid disk existence scans when disabled.
+- `Manual Refresh` runs only the checks whose automatic toggle is currently off.
 
 PowerShell alternative:
 

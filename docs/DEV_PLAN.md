@@ -6,11 +6,11 @@ This file is the single source of truth for project planning and milestone track
 
 ## Current Position
 
-- Date: 2026-02-27
+- Date: 2026-02-28
 - Active phase: MVP buildout
-- Current step: **Step 11**
-- Completed: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7, Step 8, Step 9, Step 10**
-- In progress: **Step 11**
+- Current step: **Step 12**
+- Completed: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7, Step 8, Step 9, Step 10, Step 11**
+- In progress: **Step 12**
 
 ## Status Legend
 
@@ -33,8 +33,8 @@ This file is the single source of truth for project planning and milestone track
 | 8 | Folder open sub-view + open file | DONE | Clicking folder opens inner folder view tiles; clicking tile opens item. |
 | 9 | Thumbnail cache (SQLite + disk) | DONE | Thumbnails generated/cached by path + mtime; cache hit path works. |
 | 10 | Center settings menu + runtime preferences | DONE | Center click opens settings panel with confirmation actions and persisted runtime controls. |
-| 11 | Refresh-on-open toggle (+optional watch) | IN PROGRESS | Toggle drives rescan behavior; stale cache handling is graceful. |
-| 12 | Self install/uninstall via same EXE | TODO | `--install`, `--uninstall`, installed marker, copy to `%LocalAppData%\\RadialDock`, Start Menu shortcut. |
+| 11 | Automatic refresh controls | DONE | Separate main-item and folder refresh toggles drive scan behavior; disabled checks do not touch disk; manual refresh respects enabled toggles. |
+| 12 | Self install/uninstall via same EXE | IN PROGRESS | `--install`, `--uninstall`, installed marker, copy to `%LocalAppData%\\RadialDock`, Start Menu shortcut. |
 | 13 | PyInstaller onefile + smoke test | TODO | `dist\\RadialDock.exe` produced; smoke test covers launch/hotkey/basic open. |
 
 ## Detailed Work Plan
@@ -90,12 +90,15 @@ This file is the single source of truth for project planning and milestone track
 - Include clear-all and reset-defaults with confirmations.
 - Add runtime controls for animation speed, animation disable, and compact list threshold.
 
-### Step 11 - Refresh Behavior
+### Step 11 - Automatic Refresh Controls
 
-- Add settings toggle to control refresh strategy.
-- If refresh enabled: rescan and update cache on folder open.
-- If disabled: serve cache first, fail gracefully on missing files.
-- Optional: lightweight watcher integration via `watchdog`.
+- Add separate toggles for:
+  - main ring item existence checks
+  - folder content refresh
+- On overlay open, run only the enabled checks.
+- When folder refresh is disabled, serve cached folder listings only and avoid touching disk.
+- Add a manual refresh action that runs only currently enabled checks.
+- Optional `watchdog` file watching remains deferred.
 
 ### Step 12 - Install/Uninstall
 
@@ -130,14 +133,16 @@ This file is the single source of truth for project planning and milestone track
 
 ## Latest Verification Checklist
 
-### Step 10 (Center settings menu + runtime preferences)
+### Step 11 (Automatic refresh controls)
 
 1. Launch app with `python -m radialdock.app`.
 2. Press `Ctrl+Space`.
-3. Hover center core and confirm hint appears, then click center to open settings.
-4. Change animation speed and verify UI timing updates.
-5. Toggle animations off and verify transitions become instant.
-6. Confirm clear-all and reset-default actions require confirmation and apply correctly.
+3. Click the center core to open settings.
+4. Leave `Automatic icon refresh` on, delete one file linked in the ring, then open the menu again.
+5. Confirm the missing ring item is removed automatically.
+6. Turn `Automatic folder refresh` off, open a folder once, then change that folder in Explorer.
+7. Reopen the same folder and confirm it still shows the cached listing instead of rescanning.
+8. Click `Manual Refresh` and confirm only the currently enabled checks run.
 
 ## Risk Register
 
@@ -153,3 +158,4 @@ This file is the single source of truth for project planning and milestone track
 - 2026-02-27: Adopt universal right-click back behavior (folder view back, then overlay close).
 - 2026-02-27: Use compact folder list fallback when folder entry count exceeds 50 (threshold kept easy to edit in QML for now).
 - 2026-02-27: Runtime quick settings are persisted in user config (`config.json`) so source files remain unchanged.
+- 2026-02-28: Split refresh behavior into separate user-controlled icon and folder toggles; when a refresh type is disabled, the app avoids corresponding existence scans and uses cached folder listings only.

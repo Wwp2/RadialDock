@@ -2,9 +2,9 @@
 
 ## Current Step
 
-- Current step number: **11**
-- Implemented now: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7, Step 8, Step 9, and Step 10**
-- Next: **Step 11 - Refresh-on-open behavior improvements and optional watcher integration**
+- Current step number: **12**
+- Implemented now: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7, Step 8, Step 9, Step 10, and Step 11**
+- Next: **Step 12 - Self install/uninstall via the same EXE**
 
 ## Status Snapshot
 
@@ -18,8 +18,9 @@
 - Step 8: Complete
 - Step 9: Complete
 - Step 10: Complete (new settings menu step)
-- Step 11: In progress
-- Steps 12-13: Pending
+- Step 11: Complete
+- Step 12: In progress
+- Step 13: Pending
 
 ## Change Log
 
@@ -365,3 +366,54 @@
 6. Set compact threshold to a low value (for test), open folder, and confirm compact list mode triggers.
 7. Use `Clear All Items` and `Reset Settings To Default` and confirm each asks for confirmation.
 8. Restart app and confirm settings persist from `%APPDATA%\\RadialDock\\config.json`.
+
+### 2026-02-28 - Change 27 (Step 11 complete: automatic refresh controls)
+
+- Reworked refresh behavior in `src/radialdock/model.py`:
+  - Split the old single refresh flag into:
+    - `automatic_icon_refresh`
+    - `automatic_folder_refresh`
+  - Added persisted folder listing cache (`folder_cache`) in user config.
+  - Added `refreshEnabledData()` to run only enabled checks when the radial menu opens.
+  - Added `manualRefreshEnabled()` for the settings panel manual refresh action.
+  - If automatic icon refresh is enabled, missing main ring items are removed on next menu open.
+  - If automatic folder refresh is enabled, ring folder caches are rescanned on next menu open.
+  - If automatic folder refresh is disabled, folder view uses cached listings only and does not touch disk.
+- Updated `ui/Main.qml` to trigger enabled refresh checks each time the overlay opens.
+- Updated `ui/RadialRing.qml` to consume the new folder refresh property and expanded settings panel sizing.
+- Expanded `ui/Settings.qml` with:
+  - `Automatic icon refresh` toggle
+  - `Automatic folder refresh` toggle
+  - `Manual Refresh` action
+  - helper text explaining disk-check behavior
+- Fixed settings switch state sync so reset/default actions and backend updates keep the toggles visually accurate.
+- Deferred `watchdog` file watching for now; Step 11 MVP is satisfied without background watchers.
+
+### 2026-02-28 - Step 11 Verification Instructions (Git Bash)
+
+1. In repo root:
+   - `source .venv/Scripts/activate`
+   - `python -m radialdock.app`
+2. Press `Ctrl+Space`, click the center core, and confirm settings shows:
+   - `Automatic icon refresh`
+   - `Automatic folder refresh`
+   - `Manual Refresh`
+3. Leave `Automatic icon refresh` on, close settings, delete one real file currently in the ring, then open the radial menu again.
+4. Confirm the missing ring item disappears automatically on that next open.
+5. Add/open a real folder in the ring so it has a cached listing, then turn `Automatic folder refresh` off.
+6. Change that folder in Explorer (add or remove a file), reopen the folder from the ring, and confirm it still shows the cached listing.
+7. Turn `Automatic folder refresh` back on or click `Manual Refresh` with it enabled.
+8. Reopen the same folder and confirm the folder contents update to the real current state.
+
+### 2026-02-28 - Change 28 (Manual refresh behavior correction)
+
+- Updated `src/radialdock/model.py` so `Manual Refresh` now refreshes only the areas whose automatic refresh toggle is currently off.
+- Automatic refresh types that are still enabled are skipped by `Manual Refresh` because they already run on menu open.
+- Updated `ui/Settings.qml` helper text to explain the corrected behavior:
+  - automatic-off means that category waits for manual refresh
+  - if both automatic toggles are on, `Manual Refresh` does nothing
+
+### 2026-02-28 - Change 29 (Settings helper text spacing tweak)
+
+- Reduced line spacing for the two longer automatic refresh helper texts in `ui/Settings.qml`.
+- This keeps the wrapped text more compact vertically and avoids the slight overlap in those rows.

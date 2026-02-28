@@ -67,10 +67,12 @@ def default_ring_items() -> list[DockItem]:
 @dataclass
 class Settings:
     hotkey: str = "Ctrl+Space"
-    refresh_on_open: bool = True
+    automatic_icon_refresh: bool = True
+    automatic_folder_refresh: bool = True
     animation_speed_scale: float = DEFAULT_ANIMATION_SPEED_SCALE
     animations_enabled: bool = DEFAULT_ANIMATIONS_ENABLED
     folder_compact_threshold: int = DEFAULT_FOLDER_COMPACT_THRESHOLD
+    folder_cache: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     items: list[DockItem] = field(default_factory=default_ring_items)
 
 
@@ -92,7 +94,8 @@ class AppPaths:
 
 
 class AppModel(QObject):
-    refreshOnOpenChanged = Signal()
+    automaticIconRefreshChanged = Signal()
+    automaticFolderRefreshChanged = Signal()
     ringItemsChanged = Signal()
     animationSpeedScaleChanged = Signal()
     animationsEnabledChanged = Signal()
@@ -130,7 +133,10 @@ class AppModel(QObject):
             ]
             return Settings(
                 hotkey=raw.get("hotkey", "Ctrl+Space"),
-                refresh_on_open=bool(raw.get("refresh_on_open", True)),
+                automatic_icon_refresh=bool(raw.get("automatic_icon_refresh", True)),
+                automatic_folder_refresh=bool(
+                    raw.get("automatic_folder_refresh", raw.get("refresh_on_open", True))
+                ),
                 animation_speed_scale=self._sanitize_animation_speed(
                     raw.get("animation_speed_scale", DEFAULT_ANIMATION_SPEED_SCALE)
                 ),
@@ -138,6 +144,7 @@ class AppModel(QObject):
                 folder_compact_threshold=self._sanitize_compact_threshold(
                     raw.get("folder_compact_threshold", DEFAULT_FOLDER_COMPACT_THRESHOLD)
                 ),
+                folder_cache=self._sanitize_folder_cache(raw.get("folder_cache", {})),
                 items=items,
             )
         except (json.JSONDecodeError, OSError):
@@ -163,6 +170,33 @@ class AppModel(QObject):
             return DEFAULT_FOLDER_COMPACT_THRESHOLD
         return max(MIN_FOLDER_COMPACT_THRESHOLD, min(MAX_FOLDER_COMPACT_THRESHOLD, numeric))
 
+    def _sanitize_folder_cache(self, value: object) -> dict[str, list[dict[str, str]]]:
+        if not isinstance(value, dict):
+            return {}
+
+        sanitized: dict[str, list[dict[str, str]]] = {}
+        for folder_path, raw_entries in value.items():
+            if not isinstance(folder_path, str) or not isinstance(raw_entries, list):
+                continue
+            entries: list[dict[str, str]] = []
+            for raw_entry in raw_entries[:500]:
+                if not isinstance(raw_entry, dict):
+                    continue
+                entry_path = str(raw_entry.get("path", ""))
+                entry_label = str(raw_entry.get("label", ""))
+                entry_kind = str(raw_entry.get("kind", "file") or "file")
+                entry_icon = str(raw_entry.get("icon", ""))
+                entries.append(
+                    {
+                        "path": entry_path,
+                        "label": entry_label,
+                        "kind": entry_kind,
+                        "icon": entry_icon,
+                    }
+                )
+            sanitized[folder_path] = entries
+        return sanitized
+
     def _color_for_item(self, path: str, label: str, index: int) -> str:
         seed = path or label or str(index)
         value = sum(ord(char) for char in seed)
@@ -186,15 +220,27 @@ class AppModel(QObject):
             return "file"
         return self._kind_for_path(candidate)
 
-    def get_refresh_on_open(self) -> bool:
-        return self.settings.refresh_on_open
+    def get_automatic_icon_refresh(self) -> bool:
+        return self.settings.automatic_icon_refresh
 
-    def set_refresh_on_open(self, value: bool) -> None:
-        if self.settings.refresh_on_open == value:
+    def set_automatic_icon_refresh(self, value: bool) -> None:
+        normalized = bool(value)
+        if self.settings.automatic_icon_refresh == normalized:
             return
-        self.settings.refresh_on_open = value
+        self.settings.automatic_icon_refresh = normalized
         self._save_settings(self.settings)
-        self.refreshOnOpenChanged.emit()
+        self.automaticIconRefreshChanged.emit()
+
+    def get_automatic_folder_refresh(self) -> bool:
+        return self.settings.automatic_folder_refresh
+
+    def set_automatic_folder_refresh(self, value: bool) -> None:
+        normalized = bool(value)
+        if self.settings.automatic_folder_refresh == normalized:
+            return
+        self.settings.automatic_folder_refresh = normalized
+        self._save_settings(self.settings)
+        self.automaticFolderRefreshChanged.emit()
 
     def get_animation_speed_scale(self) -> float:
         return self.settings.animation_speed_scale
@@ -255,17 +301,20 @@ class AppModel(QObject):
     @Slot()
     def clearRingItems(self) -> None:
         self.settings.items = []
+        self.settings.folder_cache = {}
         self._save_settings(self.settings)
         self.ringItemsChanged.emit()
 
     @Slot()
     def resetQuickSettings(self) -> None:
-        self.settings.refresh_on_open = True
+        self.settings.automatic_icon_refresh = True
+        self.settings.automatic_folder_refresh = True
         self.settings.animation_speed_scale = DEFAULT_ANIMATION_SPEED_SCALE
         self.settings.animations_enabled = DEFAULT_ANIMATIONS_ENABLED
         self.settings.folder_compact_threshold = DEFAULT_FOLDER_COMPACT_THRESHOLD
         self._save_settings(self.settings)
-        self.refreshOnOpenChanged.emit()
+        self.automaticIconRefreshChanged.emit()
+        self.automaticFolderRefreshChanged.emit()
         self.animationSpeedScaleChanged.emit()
         self.animationsEnabledChanged.emit()
         self.folderCompactThresholdChanged.emit()
@@ -321,6 +370,112 @@ class AppModel(QObject):
                 return thumb_uri
         return self.iconDataUrl(str(path), kind, label)
 
+    def _path_exists(self, path: str) -> bool:
+        if not path:
+            return True
+        try:
+            return Path(path).exists()
+        except OSError:
+            return False
+
+    def _refresh_ring_items(self, force: bool = False) -> bool:
+        if not force and not self.settings.automatic_icon_refresh:
+            return False
+
+        original_count = len(self.settings.items)
+        self.settings.items = [
+            item
+            for item in self.settings.items
+            if not item.path or self._path_exists(item.path)
+        ]
+        changed = len(self.settings.items) != original_count
+        if changed:
+            valid_folder_paths = {
+                item.path
+                for item in self.settings.items
+                if item.kind == "folder" and item.path
+            }
+            self.settings.folder_cache = {
+                path: entries
+                for path, entries in self.settings.folder_cache.items()
+                if path in valid_folder_paths
+            }
+        return changed
+
+    def _build_folder_entries(self, folder: Path, refresh_on_open: bool) -> list[dict[str, str]]:
+        entries: list[dict[str, str]] = []
+        children = sorted(
+            folder.iterdir(),
+            key=lambda path: (not path.is_dir(), path.name.lower()),
+        )
+        for child in children[:200]:
+            child_kind = self._kind_for_path(child)
+            label = child.name
+            entries.append(
+                {
+                    "path": str(child),
+                    "label": label,
+                    "kind": child_kind,
+                    "icon": self._preview_source(
+                        path=child,
+                        kind=child_kind,
+                        label=label,
+                        refresh_on_open=refresh_on_open,
+                    ),
+                }
+            )
+        return entries
+
+    def _refresh_folder_cache(self, force: bool = False) -> bool:
+        if not force and not self.settings.automatic_folder_refresh:
+            return False
+
+        changed = False
+        next_cache: dict[str, list[dict[str, str]]] = {}
+        for item in self.settings.items:
+            if item.kind != "folder" or not item.path:
+                continue
+            folder = Path(item.path)
+            if not folder.exists() or not folder.is_dir():
+                continue
+            try:
+                entries = self._build_folder_entries(folder, refresh_on_open=True)
+            except OSError:
+                continue
+            cached_entries = self.settings.folder_cache.get(item.path, [])
+            if cached_entries != entries:
+                changed = True
+            next_cache[item.path] = entries
+
+        if self.settings.folder_cache != next_cache:
+            self.settings.folder_cache = next_cache
+            changed = True
+        return changed
+
+    @Slot()
+    def refreshEnabledData(self) -> None:
+        ring_changed = self._refresh_ring_items()
+        folder_changed = self._refresh_folder_cache()
+        if ring_changed or folder_changed:
+            self._save_settings(self.settings)
+        if ring_changed:
+            self.ringItemsChanged.emit()
+
+    @Slot()
+    def manualRefreshEnabled(self) -> None:
+        ring_changed = False
+        folder_changed = False
+
+        if not self.settings.automatic_icon_refresh:
+            ring_changed = self._refresh_ring_items(force=True)
+        if not self.settings.automatic_folder_refresh:
+            folder_changed = self._refresh_folder_cache(force=True)
+
+        if ring_changed or folder_changed:
+            self._save_settings(self.settings)
+        if ring_changed:
+            self.ringItemsChanged.emit()
+
     @Slot(str, result=bool)
     def openPath(self, path: str) -> bool:
         if not path:
@@ -330,40 +485,34 @@ class AppModel(QObject):
     @Slot(str, bool, result="QVariantList")
     def listFolderEntries(self, folder_path: str, refresh_on_open: bool) -> list[dict[str, str]]:
         folder = Path(folder_path)
+        if not self.settings.automatic_folder_refresh:
+            return self.settings.folder_cache.get(folder_path, [])
+
         if not folder.exists() or not folder.is_dir():
             return []
 
-        entries: list[dict[str, str]] = []
         try:
-            children = sorted(
-                folder.iterdir(),
-                key=lambda path: (not path.is_dir(), path.name.lower()),
-            )
-            for child in children[:200]:
-                child_kind = self._kind_for_path(child)
-                label = child.name
-                entries.append(
-                    {
-                        "path": str(child),
-                        "label": label,
-                        "kind": child_kind,
-                        "icon": self._preview_source(
-                            path=child,
-                            kind=child_kind,
-                            label=label,
-                            refresh_on_open=refresh_on_open,
-                        ),
-                    }
-                )
+            entries = self._build_folder_entries(folder, refresh_on_open=refresh_on_open)
         except OSError:
             return []
+
+        if self.settings.folder_cache.get(folder_path) != entries:
+            self.settings.folder_cache[folder_path] = entries
+            self._save_settings(self.settings)
         return entries
 
-    refreshOnOpen = Property(
+    automaticIconRefresh = Property(
         bool,
-        get_refresh_on_open,
-        set_refresh_on_open,
-        notify=refreshOnOpenChanged,
+        get_automatic_icon_refresh,
+        set_automatic_icon_refresh,
+        notify=automaticIconRefreshChanged,
+    )
+
+    automaticFolderRefresh = Property(
+        bool,
+        get_automatic_folder_refresh,
+        set_automatic_folder_refresh,
+        notify=automaticFolderRefreshChanged,
     )
 
     ringItems = Property(

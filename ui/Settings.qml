@@ -50,6 +50,9 @@ Item {
         }
         speedField.text = Number(appModel.animationSpeedScale).toFixed(2)
         thresholdField.text = String(appModel.folderCompactThreshold)
+        animationsSwitch.checked = !!appModel.animationsEnabled
+        iconRefreshSwitch.checked = !!appModel.automaticIconRefresh
+        folderRefreshSwitch.checked = !!appModel.automaticFolderRefresh
     }
 
     onVisibleChanged: {
@@ -64,6 +67,15 @@ Item {
             settings.refreshFromModel()
         }
         function onFolderCompactThresholdChanged() {
+            settings.refreshFromModel()
+        }
+        function onAnimationsEnabledChanged() {
+            settings.refreshFromModel()
+        }
+        function onAutomaticIconRefreshChanged() {
+            settings.refreshFromModel()
+        }
+        function onAutomaticFolderRefreshChanged() {
             settings.refreshFromModel()
         }
     }
@@ -126,7 +138,7 @@ Item {
 
         Row {
             width: parent.width
-            height: 34
+            height: 40
             spacing: 10
 
             Text {
@@ -169,7 +181,8 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Switch {
-                checked: typeof appModel !== "undefined" ? appModel.animationsEnabled : true
+                id: animationsSwitch
+                checked: true
                 anchors.verticalCenter: parent.verticalCenter
                 onToggled: {
                     if (typeof appModel !== "undefined") {
@@ -188,7 +201,7 @@ Item {
 
         Row {
             width: parent.width
-            height: 34
+            height: 40
             spacing: 10
 
             Text {
@@ -220,30 +233,68 @@ Item {
 
         Row {
             width: parent.width
-            height: 34
+            height: 42
             spacing: 10
 
             Text {
-                text: "Refresh folder on open"
+                text: "Automatic icon refresh"
                 color: "#D7E8F4"
                 font.pixelSize: 12
                 width: 150
                 anchors.verticalCenter: parent.verticalCenter
             }
             Switch {
-                checked: typeof appModel !== "undefined" ? appModel.refreshOnOpen : true
+                id: iconRefreshSwitch
+                checked: true
                 anchors.verticalCenter: parent.verticalCenter
                 onToggled: {
                     if (typeof appModel !== "undefined") {
-                        appModel.refreshOnOpen = checked
+                        appModel.automaticIconRefresh = checked
                     }
                 }
             }
             Text {
-                text: "If off, cached previews are preferred"
+                text: "On = remove missing main items on menu open. Off = skip checks until Manual Refresh."
                 color: "#8DA7B9"
                 font.pixelSize: 10
                 width: parent.width - 270
+                wrapMode: Text.WordWrap
+                lineHeight: 0.8
+                lineHeightMode: Text.ProportionalHeight
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        Row {
+            width: parent.width
+            height: 42
+            spacing: 10
+
+            Text {
+                text: "Automatic folder refresh"
+                color: "#D7E8F4"
+                font.pixelSize: 12
+                width: 150
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Switch {
+                id: folderRefreshSwitch
+                checked: true
+                anchors.verticalCenter: parent.verticalCenter
+                onToggled: {
+                    if (typeof appModel !== "undefined") {
+                        appModel.automaticFolderRefresh = checked
+                    }
+                }
+            }
+            Text {
+                text: "On = rescan ring folders on menu open. Off = use cached listings until Manual Refresh."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                width: parent.width - 270
+                wrapMode: Text.WordWrap
+                lineHeight: 0.8
+                lineHeightMode: Text.ProportionalHeight
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
@@ -252,6 +303,30 @@ Item {
             width: parent.width
             height: 1
             color: "#33596F7A"
+        }
+
+        Row {
+            width: parent.width
+            height: 42
+            spacing: 8
+
+            ActionButton {
+                text: "Manual Refresh"
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: {
+                    if (typeof appModel !== "undefined" && appModel.manualRefreshEnabled) {
+                        appModel.manualRefreshEnabled()
+                    }
+                }
+            }
+            Text {
+                text: "Runs only the refresh types whose automatic toggle is off. If both are on, this does nothing."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                width: parent.width - 180
+                wrapMode: Text.WordWrap
+                anchors.verticalCenter: parent.verticalCenter
+            }
         }
 
         Row {

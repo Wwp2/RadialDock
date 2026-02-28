@@ -42,7 +42,7 @@ Item {
                                            ? 460
                                            : Math.max(180, folderGridRows * 104 + 58)
     readonly property int settingsPanelWidth: 420
-    readonly property int settingsPanelHeight: 360
+    readonly property int settingsPanelHeight: 470
     readonly property int preferredStageWidth: settingsOpen
                                            ? Math.max(390, settingsPanelWidth + 56)
                                            : (folderOpen ? Math.max(390, folderPanelWidth + 56) : 390)
@@ -242,7 +242,7 @@ Item {
                 return
             }
             settingsOpen = false
-            folderEntries = appModel.listFolderEntries(entry.path, appModel.refreshOnOpen)
+            folderEntries = appModel.listFolderEntries(entry.path, appModel.automaticFolderRefresh)
             folderTitle = entry.label || entry.path
             folderOpen = true
             return

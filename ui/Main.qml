@@ -90,6 +90,9 @@ Window {
     }
 
     function showAtCursor(cx, cy) {
+        if (typeof appModel !== "undefined" && appModel.refreshEnabledData) {
+            appModel.refreshEnabledData()
+        }
         var targetX = cx - width / 2
         var targetY = cy - height / 2
         x = Math.max(0, Math.min(targetX, Screen.width - width))
