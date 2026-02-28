@@ -53,6 +53,7 @@ Interaction notes:
 - Click the center core to open the settings panel.
 - Settings now include `Restart App` and `Quit App` controls for full process control.
 - Settings include a `Close after launch` toggle to optionally dismiss the menu after opening real items.
+- Settings include a capture-based shortcut picker at the top for keyboard or mouse-button launch shortcuts.
 - Image files now use cached thumbnail previews as full-bleed visuals in the main ring and tile-mode folder view.
 - Image previews use square cover-cropped cached thumbnails, so they fill the UI shape without stretching.
 - Missing image previews now load in the background, so folder/menu open stays responsive while thumbnails fill in.

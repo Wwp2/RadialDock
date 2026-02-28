@@ -7,6 +7,11 @@ Item {
     signal resetDefaultsConfirmed()
     property bool confirmClear: false
     property bool confirmReset: false
+    property bool capturingHotkey: false
+    property bool hotkeyCaptureReady: false
+    property string displayedHotkey: "Ctrl+Space"
+    property string hotkeyStatus: ""
+    property bool hotkeyError: false
 
     function clampSpeed(value) {
         return Math.max(0.1, Math.min(10.0, value))
@@ -44,10 +49,110 @@ Item {
         thresholdField.text = String(parsed)
     }
 
+    function beginHotkeyCapture() {
+        capturingHotkey = true
+        hotkeyCaptureReady = false
+        hotkeyError = false
+        hotkeyStatus = "Press a key or mouse button..."
+        hotkeyCaptureTarget.forceActiveFocus()
+        hotkeyCaptureArmTimer.restart()
+    }
+
+    function finishHotkeyCapture(shortcutText) {
+        if (typeof backend === "undefined" || !backend || !backend.trySetHotkey) {
+            capturingHotkey = false
+            hotkeyCaptureReady = false
+            hotkeyError = true
+            hotkeyStatus = "Shortcut handler is unavailable."
+            return
+        }
+        capturingHotkey = false
+        hotkeyCaptureReady = false
+        backend.trySetHotkey(shortcutText)
+    }
+
+    function keyNameFromEvent(event) {
+        var key = event.key
+        if (key >= Qt.Key_A && key <= Qt.Key_Z) {
+            return String.fromCharCode(key)
+        }
+        if (key >= Qt.Key_0 && key <= Qt.Key_9) {
+            return String.fromCharCode(key)
+        }
+        if (key >= Qt.Key_F1 && key <= Qt.Key_F24) {
+            return "F" + String(key - Qt.Key_F1 + 1)
+        }
+
+        switch (key) {
+        case Qt.Key_Space: return "Space"
+        case Qt.Key_Tab: return "Tab"
+        case Qt.Key_Return:
+        case Qt.Key_Enter: return "Enter"
+        case Qt.Key_Escape: return "Esc"
+        case Qt.Key_Backspace: return "Backspace"
+        case Qt.Key_Insert: return "Insert"
+        case Qt.Key_Delete: return "Delete"
+        case Qt.Key_Home: return "Home"
+        case Qt.Key_End: return "End"
+        case Qt.Key_PageUp: return "PgUp"
+        case Qt.Key_PageDown: return "PgDn"
+        case Qt.Key_Left: return "Left"
+        case Qt.Key_Up: return "Up"
+        case Qt.Key_Right: return "Right"
+        case Qt.Key_Down: return "Down"
+        default: return ""
+        }
+    }
+
+    function isModifierOnlyKey(event) {
+        return event.key === Qt.Key_Control
+            || event.key === Qt.Key_Shift
+            || event.key === Qt.Key_Alt
+            || event.key === Qt.Key_Meta
+    }
+
+    function shortcutFromKeyEvent(event) {
+        if (isModifierOnlyKey(event)) {
+            return ""
+        }
+        var keyName = keyNameFromEvent(event)
+        if (!keyName) {
+            return ""
+        }
+
+        var parts = []
+        if (event.modifiers & Qt.ControlModifier) {
+            parts.push("Ctrl")
+        }
+        if (event.modifiers & Qt.AltModifier) {
+            parts.push("Alt")
+        }
+        if (event.modifiers & Qt.ShiftModifier) {
+            parts.push("Shift")
+        }
+        if (event.modifiers & Qt.MetaModifier) {
+            parts.push("Win")
+        }
+        parts.push(keyName)
+        return parts.join("+")
+    }
+
+    function shortcutFromMouseButton(button) {
+        switch (button) {
+        case Qt.LeftButton: return "MouseLeft"
+        case Qt.RightButton: return "MouseRight"
+        case Qt.MiddleButton: return "MouseMiddle"
+        case Qt.BackButton: return "MouseX1"
+        case Qt.ForwardButton: return "MouseX2"
+        default: return ""
+        }
+    }
+
     function refreshFromModel() {
         if (typeof appModel === "undefined" || !appModel) {
             return
         }
+        displayedHotkey = appModel.hotkey
         speedField.text = Number(appModel.animationSpeedScale).toFixed(2)
         thresholdField.text = String(appModel.folderCompactThreshold)
         animationsSwitch.checked = !!appModel.animationsEnabled
@@ -82,6 +187,31 @@ Item {
         function onCloseAfterLaunchChanged() {
             settings.refreshFromModel()
         }
+        function onHotkeyChanged() {
+            settings.refreshFromModel()
+        }
+    }
+
+    Connections {
+        target: backend
+        function onHotkeyApplyResult(success, message, normalized) {
+            settings.capturingHotkey = false
+            settings.hotkeyCaptureReady = false
+            settings.hotkeyError = !success
+            settings.hotkeyStatus = message
+            if (success) {
+                settings.displayedHotkey = normalized
+            } else if (typeof appModel !== "undefined" && appModel) {
+                settings.displayedHotkey = appModel.hotkey
+            }
+        }
+    }
+
+    Timer {
+        id: hotkeyCaptureArmTimer
+        interval: 1
+        repeat: false
+        onTriggered: settings.hotkeyCaptureReady = true
     }
 
     component ActionButton: Rectangle {
@@ -132,6 +262,114 @@ Item {
             color: "#EAF4FF"
             font.pixelSize: 16
             font.bold: true
+        }
+
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: "#33596F7A"
+        }
+
+        Row {
+            width: parent.width
+            height: 36
+            spacing: 10
+
+            Text {
+                text: "Shortcut"
+                color: "#D7E8F4"
+                font.pixelSize: 12
+                width: 150
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            FocusScope {
+                id: hotkeyCaptureTarget
+                width: 120
+                height: 30
+                anchors.verticalCenter: parent.verticalCenter
+                activeFocusOnTab: true
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 6
+                    color: hotkeyCaptureMouse.pressed ? "#243543" : (hotkeyCaptureMouse.containsMouse ? "#2B4152" : "#1E2C38")
+                    border.color: settings.capturingHotkey ? "#8BE0F4FF" : "#4A6478"
+                    border.width: 1
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: settings.capturingHotkey ? "Press input..." : settings.displayedHotkey
+                        color: "#EAF4FF"
+                        font.pixelSize: 11
+                        elide: Text.ElideRight
+                    }
+                }
+
+                Keys.onPressed: function(event) {
+                    if (!settings.capturingHotkey) {
+                        return
+                    }
+                    var shortcut = settings.shortcutFromKeyEvent(event)
+                    if (!shortcut) {
+                        event.accepted = true
+                        return
+                    }
+                    settings.finishHotkeyCapture(shortcut)
+                    event.accepted = true
+                }
+
+                MouseArea {
+                    id: hotkeyCaptureMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.LeftButton
+                    onClicked: settings.beginHotkeyCapture()
+                }
+            }
+
+            ActionButton {
+                text: "Reset"
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: {
+                    if (typeof backend !== "undefined" && backend && backend.resetHotkeyToDefault) {
+                        backend.resetHotkeyToDefault()
+                    }
+                }
+            }
+        }
+
+        Item {
+            width: parent.width
+            height: 26
+
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 160
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Click the shortcut box, then press the next key, key combo, or mouse button. Left/right mouse are reserved for the UI. Default: Ctrl+Space."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        Item {
+            width: parent.width
+            height: hotkeyStatus.length > 0 ? 14 : 0
+            visible: hotkeyStatus.length > 0
+
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 160
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: hotkeyStatus
+                color: hotkeyError ? "#FFB3B3" : "#8EC9A8"
+                font.pixelSize: 9
+                elide: Text.ElideRight
+            }
         }
 
         Rectangle {
@@ -505,6 +743,22 @@ Item {
                 wrapMode: Text.WordWrap
                 anchors.verticalCenter: parent.verticalCenter
             }
+        }
+    }
+
+    MouseArea {
+        visible: settings.capturingHotkey && settings.hotkeyCaptureReady
+        anchors.fill: parent
+        z: 3000
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton | Qt.BackButton | Qt.ForwardButton
+        hoverEnabled: true
+        onPressed: function(mouse) {
+            var shortcut = settings.shortcutFromMouseButton(mouse.button)
+            if (!shortcut) {
+                return
+            }
+            settings.finishHotkeyCapture(shortcut)
+            mouse.accepted = true
         }
     }
 }

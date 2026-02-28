@@ -110,6 +110,7 @@ class AppPaths:
 
 
 class AppModel(QObject):
+    hotkeyChanged = Signal()
     automaticIconRefreshChanged = Signal()
     automaticFolderRefreshChanged = Signal()
     closeAfterLaunchChanged = Signal()
@@ -185,6 +186,17 @@ class AppModel(QObject):
     def _save_settings(self, settings: Settings) -> None:
         payload = asdict(settings)
         self.paths.config_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    def get_hotkey(self) -> str:
+        return self.settings.hotkey
+
+    def set_hotkey(self, value: str) -> None:
+        normalized = str(value).strip()
+        if not normalized or self.settings.hotkey == normalized:
+            return
+        self.settings.hotkey = normalized
+        self._save_settings(self.settings)
+        self.hotkeyChanged.emit()
 
     def get_preview_version(self) -> int:
         return self._preview_version
@@ -359,10 +371,12 @@ class AppModel(QObject):
         self.settings.automatic_icon_refresh = True
         self.settings.automatic_folder_refresh = True
         self.settings.close_after_launch = DEFAULT_CLOSE_AFTER_LAUNCH
+        self.settings.hotkey = "Ctrl+Space"
         self.settings.animation_speed_scale = DEFAULT_ANIMATION_SPEED_SCALE
         self.settings.animations_enabled = DEFAULT_ANIMATIONS_ENABLED
         self.settings.folder_compact_threshold = DEFAULT_FOLDER_COMPACT_THRESHOLD
         self._save_settings(self.settings)
+        self.hotkeyChanged.emit()
         self.automaticIconRefreshChanged.emit()
         self.automaticFolderRefreshChanged.emit()
         self.closeAfterLaunchChanged.emit()
@@ -630,6 +644,13 @@ class AppModel(QObject):
             self.settings.folder_cache[folder_path] = entries
             self._save_settings(self.settings)
         return entries
+
+    hotkey = Property(
+        str,
+        get_hotkey,
+        set_hotkey,
+        notify=hotkeyChanged,
+    )
 
     automaticIconRefresh = Property(
         bool,

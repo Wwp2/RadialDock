@@ -562,3 +562,46 @@
 - The existing settings rule remains intact:
   - automatic folder refresh off = no new folder scan on open
   - manual refresh or re-enabling automatic refresh is required to update the cached listing
+
+### 2026-02-28 - Change 44 (Custom shortcut setting with runtime rebind)
+
+- Added a persisted `hotkey` property to `src/radialdock/model.py`.
+- Added a custom shortcut editor at the top of `ui/Settings.qml`:
+  - text field
+  - `Apply` button
+  - success/error status line
+- Added runtime hotkey rebinding in `src/radialdock/app.py` via `trySetHotkey(...)`.
+- The app now validates and applies shortcut changes immediately without requiring a restart.
+- Expanded `src/radialdock/win_hotkey.py`:
+  - single-key shortcuts are now supported (modifiers are no longer required)
+  - keyboard combinations still work
+  - mouse-button shortcuts are supported via a global low-level mouse hook
+- Supported examples include:
+  - `Ctrl+Space`
+  - `F8`
+  - `A`
+  - `MouseLeft`
+  - `MouseRight`
+  - `MouseMiddle`
+  - `MouseX1`
+  - `MouseX2`
+
+### 2026-02-28 - Change 45 (Shortcut capture UI polish)
+
+- Replaced manual hotkey text entry in `ui/Settings.qml` with a capture-based shortcut picker.
+- New behavior:
+  - click the shortcut box
+  - press the next key, key combination, or mouse button
+  - the shortcut is applied immediately
+- Removed the old `Apply` button.
+- Added a shortcut-only `Reset` button that restores just the shortcut to `Ctrl+Space`.
+- Moved the shortcut helper text below the shortcut row and added a separator below it for a cleaner layout.
+- The existing full `Reset Settings To Default` flow still resets the shortcut too, and now re-applies it live through the backend hotkey manager.
+
+### 2026-02-28 - Change 46 (Protect against left/right mouse launch shortcuts)
+
+- Added a launch-shortcut safeguard in `src/radialdock/app.py`.
+- `MouseLeft` and `MouseRight` are now rejected as launcher shortcuts because they are reserved for UI interaction.
+- If the user tries to set one, the shortcut is ignored and the status line reports the reason.
+- If an older saved config contains one of those values, startup now falls back to `Ctrl+Space` automatically.
+- Updated the shortcut helper text in `ui/Settings.qml` to make that restriction explicit.
