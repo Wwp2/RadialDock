@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import Qt5Compat.GraphicalEffects
 
 Item {
     id: ring
@@ -9,6 +10,8 @@ Item {
     property bool isOpen: true
     property bool settingsOpen: false
     property bool folderOpen: false
+    property bool folderLoading: false
+    property string currentFolderPath: ""
     property string folderTitle: ""
     property var folderEntries: []
     property int radialItemMoveBaseDuration: 500
@@ -74,10 +77,33 @@ Item {
         "#FF9BC7",
         "#7EE3FF"
     ]
+    readonly property var imageExtensions: [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".bmp",
+        ".gif",
+        ".webp",
+        ".tif",
+        ".tiff"
+    ]
 
     function angleForSlot(slotIndex, total) {
         var count = Math.max(total, 1)
         return (slotIndex / count) * Math.PI * 2
+    }
+
+    function pathLooksLikeImage(localPath, kind) {
+        if ((kind || "").toLowerCase() !== "file" || !localPath) {
+            return false
+        }
+        var normalized = String(localPath).toLowerCase()
+        for (var i = 0; i < imageExtensions.length; i++) {
+            if (normalized.endsWith(imageExtensions[i])) {
+                return true
+            }
+        }
+        return false
     }
 
     function clampInt(value, minValue, maxValue) {
@@ -222,6 +248,8 @@ Item {
 
     function applyFolderClosed() {
         folderOpen = false
+        folderLoading = false
+        currentFolderPath = ""
         folderTitle = ""
         folderEntries = []
     }
@@ -233,6 +261,8 @@ Item {
     function resetToMainView() {
         settingsOpen = false
         folderOpen = false
+        folderLoading = false
+        currentFolderPath = ""
         folderTitle = ""
         folderEntries = []
         resetDragState()
@@ -256,13 +286,24 @@ Item {
             return
         }
         if (entry.kind === "folder") {
-            if (typeof appModel === "undefined" || !appModel || !appModel.listFolderEntries) {
+            if (typeof appModel === "undefined" || !appModel) {
                 return
             }
             settingsOpen = false
-            folderEntries = appModel.listFolderEntries(entry.path, appModel.automaticFolderRefresh)
+            currentFolderPath = entry.path
             folderTitle = entry.label || entry.path
+            folderEntries = []
             folderOpen = true
+            if (!appModel.automaticFolderRefresh && appModel.listFolderEntries) {
+                folderEntries = appModel.listFolderEntries(entry.path, false)
+                folderLoading = false
+            } else if (appModel.requestFolderEntries) {
+                folderLoading = true
+                appModel.requestFolderEntries(entry.path, true)
+            } else if (appModel.listFolderEntries) {
+                folderEntries = appModel.listFolderEntries(entry.path, true)
+                folderLoading = false
+            }
             return
         }
         if (typeof appModel !== "undefined" && appModel && appModel.openPath) {
@@ -416,6 +457,13 @@ Item {
             }
             ring.loadFromSettings()
         }
+        function onFolderEntriesReady(folderPath, entries) {
+            if (!ring.folderOpen || ring.currentFolderPath !== folderPath) {
+                return
+            }
+            ring.folderEntries = entries
+            ring.folderLoading = false
+        }
     }
 
     Timer {
@@ -495,6 +543,17 @@ Item {
             readonly property int total: iconRepeater.count
             readonly property int targetSlot: ring.slotForIndex(index)
             readonly property var targetPos: ring.slotPosition(targetSlot)
+            readonly property bool imagePreview: ring.pathLooksLikeImage(path, kind)
+            readonly property int previewRevision: (typeof appModel !== "undefined" && appModel)
+                                                   ? appModel.previewVersion
+                                                   : 0
+            readonly property string resolvedSource: {
+                var _ = previewRevision
+                if (typeof appModel !== "undefined" && appModel && appModel.iconDataUrl) {
+                    return appModel.iconDataUrl(path || "", kind || "file", label || "Item")
+                }
+                return ""
+            }
             readonly property real revealStart: (index / Math.max(total, 1)) * 0.36
             readonly property real revealValue: Math.max(0.0, Math.min(1.0, (ring.openProgress - revealStart) / (1.0 - revealStart)))
             property bool dragging: false
@@ -533,14 +592,56 @@ Item {
                 anchors.fill: parent
                 radius: width / 2
                 color: Qt.rgba(0.13, 0.18, 0.25, 0.9)
-                border.color: color
-                border.width: ring.hoverIndex === index && ring.draggedIndex >= 0 ? 2 : 1
+                border.width: 0
 
-                Behavior on border.color {
-                    ColorAnimation { duration: ring.animDuration(110) }
+                Item {
+                    id: imagePreviewMaskHost
+                    anchors.fill: parent
+                    visible: imagePreview
+                    layer.enabled: true
+                    layer.effect: OpacityMask {
+                        maskSource: Rectangle {
+                            width: imagePreviewMaskHost.width
+                            height: imagePreviewMaskHost.height
+                            radius: imagePreviewMaskHost.width / 2
+                            color: "white"
+                        }
+                    }
+
+                    Image {
+                        anchors.fill: parent
+                        source: resolvedSource
+                        fillMode: Image.PreserveAspectCrop
+                        smooth: true
+                        asynchronous: true
+                    }
+
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        height: 18
+                        color: "#7A0C1218"
+                    }
+                }
+
+                Text {
+                    visible: imagePreview
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 3
+                    anchors.leftMargin: 4
+                    anchors.rightMargin: 4
+                    text: label
+                    color: "#F7FBFF"
+                    font.pixelSize: 8
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                 }
 
                 Column {
+                    visible: !imagePreview
                     anchors.fill: parent
                     anchors.margins: 6
                     spacing: 2
@@ -551,9 +652,7 @@ Item {
                         height: 26
                         fillMode: Image.PreserveAspectFit
                         smooth: true
-                        source: (typeof appModel !== "undefined" && appModel && appModel.iconDataUrl)
-                                ? appModel.iconDataUrl(path || "", kind || "file", label || "Item")
-                                : ""
+                        source: resolvedSource
                     }
 
                     Text {
@@ -566,6 +665,18 @@ Item {
                         wrapMode: Text.Wrap
                         maximumLineCount: 2
                         elide: Text.ElideRight
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: width / 2
+                    color: "transparent"
+                    border.color: color
+                    border.width: ring.hoverIndex === index && ring.draggedIndex >= 0 ? 2 : 1
+
+                    Behavior on border.color {
+                        ColorAnimation { duration: ring.animDuration(110) }
                     }
                 }
             }
@@ -703,6 +814,7 @@ Item {
         z: 300
         title: ring.folderTitle
         entries: ring.folderEntries
+        loading: ring.folderLoading
         compactMode: ring.compactListMode
         onTileActivated: function(path, kind) {
             ring.openFolderEntry(path, kind)

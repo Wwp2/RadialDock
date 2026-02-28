@@ -53,6 +53,10 @@ Interaction notes:
 - Click the center core to open the settings panel.
 - Settings now include `Restart App` and `Quit App` controls for full process control.
 - Settings include a `Close after launch` toggle to optionally dismiss the menu after opening real items.
+- Image files now use cached thumbnail previews as full-bleed visuals in the main ring and tile-mode folder view.
+- Image previews use square cover-cropped cached thumbnails, so they fill the UI shape without stretching.
+- Missing image previews now load in the background, so folder/menu open stays responsive while thumbnails fill in.
+- Folder views now open first and load refreshed contents after, while cached-only mode still opens immediately with no new scan.
 - Folder sub-view adapts size to item count.
 - If folder contains more than `50` items, compact list mode is used.
 - Settings are persisted per user at `%APPDATA%\\RadialDock\\config.json`.

@@ -498,3 +498,67 @@
 - Added a second state reset in `ui/Main.qml` inside `showAtCursor(...)`.
 - The overlay now resets `ringWidget` to the main radial view before positioning and replaying the open animation.
 - This guarantees every hotkey reopen starts from the main ring, even if a previous close path did not fully settle before the next open.
+
+### 2026-02-28 - Change 39 (Full-bleed image previews for image files)
+
+- Updated `src/radialdock/model.py` so `iconDataUrl(...)` returns cached thumbnail URIs for image files instead of shell icons.
+- This reuses the existing thumbnail cache for image-based ring items.
+- Updated `ui/RadialRing.qml`:
+  - image files in the main ring now render as large full-bleed previews inside the icon tile area
+  - non-image files/folders keep the existing icon layout
+- Updated `ui/Tile.qml` and `ui/FolderView.qml`:
+  - tile-mode folder entries now render image files as full-bleed previews across the full tile area
+  - non-image entries keep the existing centered icon layout
+- Added a small bottom label overlay for full-bleed image previews so the item name remains visible.
+
+### 2026-02-28 - Change 40 (Rounded masking + square cover thumbnails)
+
+- Updated `src/radialdock/cache.py` thumbnail generation to use square cover-cropped previews via `ImageOps.fit(...)`.
+- The cached preview now keeps the original aspect ratio and fills the target square:
+  - wider images crop left/right
+  - taller images crop top/bottom
+  - no stretching is introduced
+- Added a thumbnail render version token so older non-cover cached previews are invalidated and regenerated.
+- Updated `ui/RadialRing.qml` and `ui/Tile.qml` to use rounded masking:
+  - main ring image previews are clipped to the round icon shape
+  - tile-mode image previews are clipped to the existing rounded tile corners
+
+### 2026-02-28 - Change 41 (Radial image label kept as overlay)
+
+- Fixed the radial-menu image preview label so it is no longer composited inside the masked preview layer.
+- In `ui/RadialRing.qml`, the filename text for image previews now sits outside the masked image host.
+- Result: the text remains a normal overlay on top of the image instead of looking like part of the cached preview itself.
+
+### 2026-02-28 - Change 42 (Fast thumbnail loading pass: async + on-demand)
+
+- Implemented the first four thumbnail speed optimizations.
+- In `src/radialdock/model.py`:
+  - image preview generation is no longer done synchronously on the UI path
+  - missing thumbnails now return a fast fallback immediately and queue background generation
+  - added `previewVersion` so QML can refresh when a background thumbnail finishes
+  - image previews use one shared square size (`DEFAULT_PREVIEW_SIZE`) for both ring and tile view
+- In `src/radialdock/cache.py`:
+  - added `peek_thumbnail_uri(...)` so cache hits can be returned immediately without triggering generation
+- In `ui/RadialRing.qml`, `ui/Tile.qml`, and `ui/FolderView.qml`:
+  - image/icon sources now resolve on demand from the backend instead of being precomputed for every folder entry
+  - visible delegates refresh automatically when the async thumbnail becomes available
+- In `src/radialdock/model.py` folder entry building:
+  - folder listing no longer pre-generates thumbnails while constructing the folder model
+  - this removes the old “wait for folder entries to finish preview work before the view feels ready” path
+- Result:
+  - menu/folder opens should feel faster
+  - cached previews display immediately if they already exist
+  - uncached previews appear shortly after, without blocking the UI thread
+
+### 2026-02-28 - Change 43 (Folder view opens first, entries load after)
+
+- Removed the remaining synchronous folder-open hitch by changing the folder-open flow in `ui/RadialRing.qml`.
+- Folder behavior is now:
+  - the folder panel opens immediately
+  - if automatic folder refresh is on, the entry list is loaded asynchronously in the backend
+  - if automatic folder refresh is off, cached entries are used immediately and no refresh work is triggered
+- Added `requestFolderEntries(...)` and `folderEntriesReady` in `src/radialdock/model.py`.
+- Added a small `Loading folder...` state in `ui/FolderView.qml` for the brief async load window when needed.
+- The existing settings rule remains intact:
+  - automatic folder refresh off = no new folder scan on open
+  - manual refresh or re-enabling automatic refresh is required to update the cached listing

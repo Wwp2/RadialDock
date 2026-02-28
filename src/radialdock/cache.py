@@ -7,6 +7,8 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
+THUMB_RENDER_VERSION = "cover-v2"
+
 
 @dataclass
 class CacheEntry:
@@ -50,6 +52,29 @@ class ThumbnailCache:
             return None
         return thumb_path.as_uri()
 
+    def peek_thumbnail_uri(
+        self,
+        source_path: Path,
+        size: tuple[int, int] = (96, 96),
+    ) -> str | None:
+        if not source_path.exists() or not source_path.is_file():
+            return None
+
+        try:
+            mtime = source_path.stat().st_mtime
+        except OSError:
+            return None
+
+        cached = self._lookup(
+            source_path=source_path,
+            mtime=mtime,
+            refresh=False,
+            size=size,
+        )
+        if cached is None:
+            return None
+        return cached.as_uri()
+
     def get_thumbnail_path(
         self,
         source_path: Path,
@@ -64,7 +89,7 @@ class ThumbnailCache:
         except OSError:
             return None
 
-        cached = self._lookup(source_path=source_path, mtime=mtime, refresh=refresh)
+        cached = self._lookup(source_path=source_path, mtime=mtime, refresh=refresh, size=size)
         if cached is not None:
             return cached
 
@@ -75,7 +100,23 @@ class ThumbnailCache:
         self._upsert(source_path=source_path, mtime=mtime, thumb_path=rendered)
         return rendered
 
-    def _lookup(self, source_path: Path, mtime: float, refresh: bool) -> Path | None:
+    def _thumb_path_for(
+        self,
+        source_path: Path,
+        mtime: float,
+        size: tuple[int, int],
+    ) -> Path:
+        key = f"{THUMB_RENDER_VERSION}|{source_path}|{mtime}|{size[0]}x{size[1]}"
+        thumb_name = hashlib.sha1(key.encode("utf-8"), usedforsecurity=False).hexdigest() + ".png"
+        return self.thumb_dir / thumb_name
+
+    def _lookup(
+        self,
+        source_path: Path,
+        mtime: float,
+        refresh: bool,
+        size: tuple[int, int],
+    ) -> Path | None:
         if refresh:
             return None
         with sqlite3.connect(self.db_path) as conn:
@@ -87,7 +128,10 @@ class ThumbnailCache:
             return None
         cached_mtime = float(row[0])
         cached_thumb = Path(str(row[1]))
+        expected_thumb = self._thumb_path_for(source_path=source_path, mtime=mtime, size=size)
         if cached_mtime != mtime or not cached_thumb.exists():
+            return None
+        if cached_thumb.name != expected_thumb.name:
             return None
         return cached_thumb
 
@@ -97,15 +141,19 @@ class ThumbnailCache:
         mtime: float,
         size: tuple[int, int],
     ) -> Path | None:
-        key = f"{source_path}|{mtime}|{size[0]}x{size[1]}"
-        thumb_name = hashlib.sha1(key.encode("utf-8"), usedforsecurity=False).hexdigest() + ".png"
-        thumb_path = self.thumb_dir / thumb_name
+        target_size = (max(1, int(size[0])), max(1, int(size[1])))
+        thumb_path = self._thumb_path_for(source_path=source_path, mtime=mtime, size=target_size)
         try:
             with Image.open(source_path) as image:
                 image = ImageOps.exif_transpose(image)
-                image.thumbnail(size, Image.Resampling.LANCZOS)
                 if image.mode not in ("RGB", "RGBA"):
                     image = image.convert("RGBA")
+                image = ImageOps.fit(
+                    image,
+                    target_size,
+                    method=Image.Resampling.LANCZOS,
+                    centering=(0.5, 0.5),
+                )
                 image.save(thumb_path, "PNG")
         except Exception:
             return None

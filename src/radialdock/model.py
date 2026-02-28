@@ -2,10 +2,23 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QFileInfo, QObject, Property, Qt, Signal, Slot
+from PySide6.QtCore import (
+    QByteArray,
+    QBuffer,
+    QIODevice,
+    QFileInfo,
+    QMetaObject,
+    QObject,
+    Property,
+    Qt,
+    Signal,
+    Slot,
+)
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QFileIconProvider
 
@@ -20,6 +33,7 @@ MAX_ANIMATION_SPEED_SCALE = 10.0
 DEFAULT_ANIMATIONS_ENABLED = True
 DEFAULT_CLOSE_AFTER_LAUNCH = True
 DEFAULT_FOLDER_COMPACT_THRESHOLD = 50
+DEFAULT_PREVIEW_SIZE = (128, 128)
 MIN_FOLDER_COMPACT_THRESHOLD = 1
 MAX_FOLDER_COMPACT_THRESHOLD = 5000
 DEFAULT_ITEM_COLORS = [
@@ -99,6 +113,9 @@ class AppModel(QObject):
     automaticIconRefreshChanged = Signal()
     automaticFolderRefreshChanged = Signal()
     closeAfterLaunchChanged = Signal()
+    folderEntriesReady = Signal(str, "QVariantList")
+    _folderEntriesResolved = Signal(str, object)
+    previewVersionChanged = Signal()
     ringItemsChanged = Signal()
     animationSpeedScaleChanged = Signal()
     animationsEnabledChanged = Signal()
@@ -111,6 +128,15 @@ class AppModel(QObject):
         self._icon_provider = QFileIconProvider()
         self._thumb_cache = ThumbnailCache(paths.cache_dir)
         self._icon_cache: dict[str, str] = {}
+        self._preview_version = 0
+        self._preview_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="radialdock-preview")
+        self._pending_previews: set[tuple[str, tuple[int, int]]] = set()
+        self._pending_folder_requests: set[str] = set()
+        self._preview_lock = threading.Lock()
+        self._folderEntriesResolved.connect(
+            self._handle_folder_entries_resolved,
+            Qt.ConnectionType.QueuedConnection,
+        )
 
     def _load_settings(self) -> Settings:
         self.paths.config_dir.mkdir(parents=True, exist_ok=True)
@@ -159,6 +185,14 @@ class AppModel(QObject):
     def _save_settings(self, settings: Settings) -> None:
         payload = asdict(settings)
         self.paths.config_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    def get_preview_version(self) -> int:
+        return self._preview_version
+
+    @Slot()
+    def _bump_preview_version(self) -> None:
+        self._preview_version += 1
+        self.previewVersionChanged.emit()
 
     def _sanitize_animation_speed(self, value: object) -> float:
         try:
@@ -342,6 +376,18 @@ class AppModel(QObject):
         if cache_key in self._icon_cache:
             return self._icon_cache[cache_key]
 
+        if kind == "file" and path:
+            candidate = Path(path)
+            if candidate.suffix.lower() in IMAGE_EXTENSIONS:
+                thumb_uri = self._thumb_cache.peek_thumbnail_uri(
+                    candidate,
+                    size=DEFAULT_PREVIEW_SIZE,
+                )
+                if thumb_uri:
+                    self._icon_cache[cache_key] = thumb_uri
+                    return thumb_uri
+                self._queue_preview_generation(candidate, DEFAULT_PREVIEW_SIZE)
+
         icon = self._icon_for_item(path=path, kind=kind)
         pixmap = icon.pixmap(64, 64)
         if pixmap.isNull():
@@ -350,6 +396,78 @@ class AppModel(QObject):
         data_url = self._pixmap_to_data_url(pixmap)
         self._icon_cache[cache_key] = data_url
         return data_url
+
+    def _queue_preview_generation(self, source_path: Path, size: tuple[int, int]) -> None:
+        if not source_path.exists():
+            return
+
+        key = (str(source_path), size)
+        with self._preview_lock:
+            if key in self._pending_previews:
+                return
+            self._pending_previews.add(key)
+
+        def worker() -> None:
+            try:
+                self._thumb_cache.get_thumbnail_uri(source_path, refresh=False, size=size)
+                prefix = f"{source_path}|file|"
+                stale_keys = [key_name for key_name in self._icon_cache if key_name.startswith(prefix)]
+                for key_name in stale_keys:
+                    self._icon_cache.pop(key_name, None)
+            finally:
+                with self._preview_lock:
+                    self._pending_previews.discard(key)
+                QMetaObject.invokeMethod(self, "_bump_preview_version", Qt.ConnectionType.QueuedConnection)
+
+        self._preview_executor.submit(worker)
+
+    @Slot(str, bool)
+    def requestFolderEntries(self, folder_path: str, refresh_on_open: bool) -> None:
+        if not folder_path:
+            self.folderEntriesReady.emit("", [])
+            return
+
+        if not self.settings.automatic_folder_refresh:
+            self.folderEntriesReady.emit(folder_path, self.settings.folder_cache.get(folder_path, []))
+            return
+
+        with self._preview_lock:
+            if folder_path in self._pending_folder_requests:
+                return
+            self._pending_folder_requests.add(folder_path)
+
+        def worker() -> None:
+            try:
+                folder = Path(folder_path)
+                if not folder.exists() or not folder.is_dir():
+                    entries: list[dict[str, str]] = []
+                else:
+                    try:
+                        entries = self._build_folder_entries(folder, refresh_on_open=refresh_on_open)
+                    except OSError:
+                        entries = []
+                self._folderEntriesResolved.emit(folder_path, entries)
+            finally:
+                with self._preview_lock:
+                    self._pending_folder_requests.discard(folder_path)
+
+        self._preview_executor.submit(worker)
+
+    @Slot(str, object)
+    def _handle_folder_entries_resolved(self, folder_path: str, entries: object) -> None:
+        if isinstance(entries, list):
+            normalized_entries = [
+                entry for entry in entries
+                if isinstance(entry, dict)
+            ]
+        else:
+            normalized_entries = []
+
+        if self.settings.folder_cache.get(folder_path) != normalized_entries:
+            self.settings.folder_cache[folder_path] = normalized_entries
+            self._save_settings(self.settings)
+
+        self.folderEntriesReady.emit(folder_path, normalized_entries)
 
     def _icon_for_item(self, path: str, kind: str) -> QIcon:
         if path:
@@ -433,12 +551,7 @@ class AppModel(QObject):
                     "path": str(child),
                     "label": label,
                     "kind": child_kind,
-                    "icon": self._preview_source(
-                        path=child,
-                        kind=child_kind,
-                        label=label,
-                        refresh_on_open=refresh_on_open,
-                    ),
+                    "icon": "",
                 }
             )
         return entries
@@ -564,4 +677,10 @@ class AppModel(QObject):
         get_folder_compact_threshold,
         set_folder_compact_threshold,
         notify=folderCompactThresholdChanged,
+    )
+
+    previewVersion = Property(
+        int,
+        get_preview_version,
+        notify=previewVersionChanged,
     )

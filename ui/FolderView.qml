@@ -6,7 +6,20 @@ Item {
     property var entries: []
     property string title: "Folder"
     property bool compactMode: false
+    property bool loading: false
     signal tileActivated(string path, string kind)
+
+    function entrySource(entry) {
+        var _ = (typeof appModel !== "undefined" && appModel) ? appModel.previewVersion : 0
+        if (typeof appModel !== "undefined" && appModel && appModel.iconDataUrl) {
+            return appModel.iconDataUrl(
+                entry.path || "",
+                entry.kind || "file",
+                entry.label || "Item"
+            )
+        }
+        return entry.icon || ""
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -78,7 +91,25 @@ Item {
         delegate: Tile {
             text: modelData.label || "Item"
             imageSource: modelData.icon || ""
+            itemPath: modelData.path || ""
+            itemKind: modelData.kind || "file"
             onActivated: folderView.tileActivated(modelData.path || "", modelData.kind || "file")
+        }
+    }
+
+    Item {
+        visible: folderView.loading && folderView.entries.length === 0
+        anchors.top: header.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 12
+
+        Text {
+            anchors.centerIn: parent
+            text: "Loading folder..."
+            color: "#A9C7D8"
+            font.pixelSize: 12
         }
     }
 
@@ -115,7 +146,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 14
                 height: 14
-                source: modelData.icon || ""
+                source: folderView.entrySource(modelData)
                 fillMode: Image.PreserveAspectFit
                 smooth: true
             }
