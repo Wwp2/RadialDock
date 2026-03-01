@@ -46,7 +46,7 @@ Item {
                                            ? 460
                                            : Math.max(180, folderGridRows * 104 + 58)
     readonly property int settingsPanelWidth: 420
-    readonly property int settingsPanelHeight: 780
+    readonly property int settingsPanelHeight: 800
     readonly property int preferredStageWidth: settingsOpen
                                            ? Math.max(390, settingsPanelWidth + 56)
                                            : (folderOpen ? Math.max(390, folderPanelWidth + 56) : 390)

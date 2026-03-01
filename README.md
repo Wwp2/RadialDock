@@ -60,12 +60,16 @@ Interaction notes:
 - Image previews use square cover-cropped cached thumbnails, so they fill the UI shape without stretching.
 - Missing image previews now load in the background, so folder/menu open stays responsive while thumbnails fill in.
 - Folder views now open first and load refreshed contents after, while cached-only mode still opens immediately with no new scan.
+- When the startup message is enabled, the startup help appears every time the radial dock is opened until the user turns it off.
+- On app launch, the radial menu opens centered on screen so users immediately see that it is running.
+- The startup message explains the app, the default shortcut (`Ctrl+Space`), where to change it, and how to add/remove ring items. It can be turned off.
 - Folder sub-view adapts size to item count.
 - If folder contains more than `50` items, compact list mode is used.
 - Source runs store settings at `%APPDATA%\\RadialDock\\config.json`.
 - Installed runs store settings and cache inside `%LocalAppData%\\RadialDock\\`.
 - Automatic refresh settings let users avoid disk existence scans when disabled.
 - `Manual Refresh` runs only the checks whose automatic toggle is currently off.
+- Fresh installs start with an empty ring. Add items by dragging files, folders, or shortcuts in from Explorer.
 
 PowerShell alternative:
 
@@ -96,9 +100,9 @@ When running from source (`python -m radialdock.app`), install features are stil
 .\build.ps1
 ```
 
-This runs PyInstaller `--onefile` and outputs:
+This runs PyInstaller `--onefile`, prompts in the terminal for a version number using the last saved value from `VERSION.txt` as the default, stores the chosen version back to `VERSION.txt`, and outputs:
 
-- `dist\RadialDockInstaller.exe` for install/uninstall and first-time setup
+- `dist\RadialDockInstaller-<version>.exe` for install/uninstall and first-time setup
 
 When installed, it copies itself to:
 

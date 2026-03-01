@@ -25,6 +25,7 @@ INSTALL_MARKER = "install.json"
 START_MENU_SHORTCUT_NAME = "RadialDock.lnk"
 DESKTOP_SHORTCUT_NAME = "RadialDock.lnk"
 STARTUP_SHORTCUT_NAME = "RadialDock Startup.lnk"
+SHORTCUT_LAUNCH_ARG = "--shortcut-launch"
 
 MB_ICONQUESTION = 0x20
 MB_ICONINFORMATION = 0x40
@@ -159,8 +160,27 @@ def _source_root() -> Path:
 
 def _normalized_launch_args(launch_args: list[str] | None = None) -> list[str]:
     args = list(launch_args or sys.argv[1:])
-    filtered = [arg for arg in args if arg not in {"--install", "--uninstall"}]
+    filtered = [
+        arg for arg in args
+        if arg not in {"--install", "--uninstall", SHORTCUT_LAUNCH_ARG}
+    ]
     return filtered
+
+
+def _with_extra_arg(launch_spec: LaunchSpec, extra_arg: str) -> LaunchSpec:
+    if not extra_arg:
+        return launch_spec
+    next_arguments = launch_spec.arguments.strip()
+    if next_arguments:
+        next_arguments = f"{next_arguments} {extra_arg}"
+    else:
+        next_arguments = extra_arg
+    return LaunchSpec(
+        target_path=launch_spec.target_path,
+        arguments=next_arguments,
+        working_dir=launch_spec.working_dir,
+        icon_path=launch_spec.icon_path,
+    )
 
 
 def _current_launch_spec(
@@ -291,12 +311,18 @@ def install_self(launch_args: list[str] | None = None) -> int:
         launch_spec = _current_launch_spec(launch_args=launch_args, prefer_installed=False)
 
     if create_start_menu:
-        _create_shortcut(start_menu_shortcut_path(), launch_spec)
+        _create_shortcut(
+            start_menu_shortcut_path(),
+            _with_extra_arg(launch_spec, SHORTCUT_LAUNCH_ARG),
+        )
     else:
         _remove_path(start_menu_shortcut_path())
 
     if create_desktop:
-        _create_shortcut(desktop_shortcut_path(), launch_spec)
+        _create_shortcut(
+            desktop_shortcut_path(),
+            _with_extra_arg(launch_spec, SHORTCUT_LAUNCH_ARG),
+        )
     else:
         _remove_path(desktop_shortcut_path())
 

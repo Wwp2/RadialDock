@@ -715,6 +715,14 @@ Item {
             font.bold: true
         }
 
+        Text {
+            text: (typeof appModel !== "undefined" && appModel)
+                  ? ("Version: " + appModel.appVersion)
+                  : "Version: 0.0.0"
+            color: "#8DA7B9"
+            font.pixelSize: 10
+        }
+
         Row {
             width: parent.width
             height: 36

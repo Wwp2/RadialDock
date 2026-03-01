@@ -59,6 +59,24 @@ IMAGE_EXTENSIONS = {
 }
 
 
+def resolve_app_version() -> str:
+    version_path: Path
+    if getattr(sys, "frozen", False):
+        bundle_root = getattr(sys, "_MEIPASS", "")
+        if bundle_root:
+            version_path = Path(bundle_root) / "VERSION.txt"
+        else:
+            version_path = Path(sys.executable).resolve().parent / "VERSION.txt"
+    else:
+        version_path = Path(__file__).resolve().parents[2] / "VERSION.txt"
+
+    try:
+        value = version_path.read_text(encoding="utf-8").strip()
+        return value or "0.0.0"
+    except OSError:
+        return "0.0.0"
+
+
 @dataclass
 class DockItem:
     path: str
@@ -68,21 +86,13 @@ class DockItem:
 
 
 def default_ring_items() -> list[DockItem]:
-    return [
-        DockItem(path="", label="Steam", kind="app", color="#FF7B6C"),
-        DockItem(path="", label="Discord", kind="app", color="#8D9BFF"),
-        DockItem(path="", label="Downloads", kind="folder", color="#63D5C2"),
-        DockItem(path="", label="Photos", kind="folder", color="#F9B26E"),
-        DockItem(path="", label="VS Code", kind="app", color="#62B9FF"),
-        DockItem(path="", label="Music", kind="folder", color="#DD8DFF"),
-        DockItem(path="", label="Maps", kind="app", color="#83E37B"),
-        DockItem(path="", label="Docs", kind="folder", color="#F0DF87"),
-    ]
+    return []
 
 
 @dataclass
 class Settings:
     hotkey: str = "Ctrl+Space"
+    startup_message_enabled: bool = True
     automatic_icon_refresh: bool = True
     automatic_folder_refresh: bool = True
     close_after_launch: bool = DEFAULT_CLOSE_AFTER_LAUNCH
@@ -138,6 +148,7 @@ class AppPaths:
 
 class AppModel(QObject):
     hotkeyChanged = Signal()
+    startupMessageEnabledChanged = Signal()
     automaticIconRefreshChanged = Signal()
     automaticFolderRefreshChanged = Signal()
     closeAfterLaunchChanged = Signal()
@@ -165,6 +176,7 @@ class AppModel(QObject):
             self._handle_folder_entries_resolved,
             Qt.ConnectionType.QueuedConnection,
         )
+        self._app_version = resolve_app_version()
 
     def _load_settings(self) -> Settings:
         self.paths.config_dir.mkdir(parents=True, exist_ok=True)
@@ -190,6 +202,7 @@ class AppModel(QObject):
             ]
             return Settings(
                 hotkey=raw.get("hotkey", "Ctrl+Space"),
+                startup_message_enabled=bool(raw.get("startup_message_enabled", True)),
                 automatic_icon_refresh=bool(raw.get("automatic_icon_refresh", True)),
                 automatic_folder_refresh=bool(
                     raw.get("automatic_folder_refresh", raw.get("refresh_on_open", True))
@@ -225,8 +238,22 @@ class AppModel(QObject):
         self._save_settings(self.settings)
         self.hotkeyChanged.emit()
 
+    def get_startup_message_enabled(self) -> bool:
+        return self.settings.startup_message_enabled
+
+    def set_startup_message_enabled(self, value: bool) -> None:
+        normalized = bool(value)
+        if self.settings.startup_message_enabled == normalized:
+            return
+        self.settings.startup_message_enabled = normalized
+        self._save_settings(self.settings)
+        self.startupMessageEnabledChanged.emit()
+
     def get_preview_version(self) -> int:
         return self._preview_version
+
+    def get_app_version(self) -> str:
+        return self._app_version
 
     @Slot()
     def _bump_preview_version(self) -> None:
@@ -395,6 +422,7 @@ class AppModel(QObject):
 
     @Slot()
     def resetQuickSettings(self) -> None:
+        self.settings.startup_message_enabled = True
         self.settings.automatic_icon_refresh = True
         self.settings.automatic_folder_refresh = True
         self.settings.close_after_launch = DEFAULT_CLOSE_AFTER_LAUNCH
@@ -404,6 +432,7 @@ class AppModel(QObject):
         self.settings.folder_compact_threshold = DEFAULT_FOLDER_COMPACT_THRESHOLD
         self._save_settings(self.settings)
         self.hotkeyChanged.emit()
+        self.startupMessageEnabledChanged.emit()
         self.automaticIconRefreshChanged.emit()
         self.automaticFolderRefreshChanged.emit()
         self.closeAfterLaunchChanged.emit()
@@ -679,6 +708,13 @@ class AppModel(QObject):
         notify=hotkeyChanged,
     )
 
+    startupMessageEnabled = Property(
+        bool,
+        get_startup_message_enabled,
+        set_startup_message_enabled,
+        notify=startupMessageEnabledChanged,
+    )
+
     automaticIconRefresh = Property(
         bool,
         get_automatic_icon_refresh,
@@ -731,4 +767,10 @@ class AppModel(QObject):
         int,
         get_preview_version,
         notify=previewVersionChanged,
+    )
+
+    appVersion = Property(
+        str,
+        get_app_version,
+        constant=True,
     )

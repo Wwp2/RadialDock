@@ -37,6 +37,7 @@ Window {
     property bool closing: false
     property bool mainRevealActive: false
     property bool snapBackdropResize: false
+    property bool startupMessageVisible: false
 
     function animDuration(baseDuration) {
         if (!animationsEnabled) {
@@ -52,7 +53,15 @@ Window {
         y = Math.max(0, Math.min(y, maxY))
     }
 
+    function shouldShowStartupMessage() {
+        return !!(typeof appModel !== "undefined" && appModel && appModel.startupMessageEnabled)
+    }
+
     function handleBackAction() {
+        if (startupMessageVisible) {
+            startupMessageVisible = false
+            return
+        }
         if (ringWidget && ringWidget.settingsOpen) {
             ringWidget.closeSettingsView()
             return
@@ -118,10 +127,25 @@ Window {
         if (ringWidget) {
             ringWidget.resetToMainView()
         }
+        startupMessageVisible = shouldShowStartupMessage()
         var targetX = cx - width / 2
         var targetY = cy - height / 2
         x = Math.max(0, Math.min(targetX, Screen.width - width))
         y = Math.max(0, Math.min(targetY, Screen.height - height))
+        snapBackdropResize = false
+        playMainRingReveal()
+    }
+
+    function showCenteredStartup() {
+        if (typeof appModel !== "undefined" && appModel && appModel.refreshEnabledData) {
+            appModel.refreshEnabledData()
+        }
+        if (ringWidget) {
+            ringWidget.resetToMainView()
+        }
+        x = Math.max(0, Math.round((Screen.width - width) / 2))
+        y = Math.max(0, Math.round((Screen.height - height) / 2))
+        startupMessageVisible = shouldShowStartupMessage()
         snapBackdropResize = false
         playMainRingReveal()
     }
@@ -150,6 +174,9 @@ Window {
         target: backend
         function onHotkeyTriggered(x, y) {
             overlay.toggleAtCursor(x, y)
+        }
+        function onShortcutLaunchRequested() {
+            overlay.showCenteredStartup()
         }
         function onHideRequested() {
             overlay.hideOverlay()
@@ -331,6 +358,122 @@ Window {
             onClicked: function(mouse) {
                 mouse.accepted = true
                 overlay.handleBackAction()
+            }
+        }
+
+        Rectangle {
+            id: startupCard
+            z: 1800
+            visible: overlay.startupMessageVisible
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 36, 360)
+            height: 292
+            radius: 16
+            color: "#F41A2430"
+            border.color: "#88D5E6F4"
+            border.width: 1
+
+            Column {
+                z: 1
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 10
+
+                Text {
+                    text: "Welcome To RadialDock"
+                    color: "#F2FAFF"
+                    font.pixelSize: 16
+                    font.bold: true
+                }
+
+                Text {
+                    width: parent.width
+                    text: "RadialDock is a quick launcher that opens a radial menu near your cursor so you can start apps, open files, and browse pinned folders fast."
+                    color: "#D5E7F3"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+
+                Text {
+                    width: parent.width
+                    text: "Default launch shortcut: Ctrl+Space. You can change it in the Settings panel by clicking the center of the radial menu."
+                    color: "#D5E7F3"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+
+                Text {
+                    width: parent.width
+                    text: "To get started, drag files, folders, or shortcuts from Explorer into the ring to add them. Drag a pinned item out of the ring to remove it."
+                    color: "#D5E7F3"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+
+                Text {
+                    width: parent.width
+                    text: "Right click works as a back button. Press Esc or click outside the menu to close it."
+                    color: "#A8C1D4"
+                    font.pixelSize: 10
+                    wrapMode: Text.WordWrap
+                }
+
+                Item {
+                    width: parent.width
+                    height: 1
+                }
+
+                CheckBox {
+                    id: startupDisableCheckbox
+                    text: "Turn Off Startup Message"
+                    checked: (typeof appModel !== "undefined" && appModel)
+                             ? !appModel.startupMessageEnabled
+                             : false
+                    onToggled: {
+                        if (typeof appModel !== "undefined" && appModel) {
+                            appModel.startupMessageEnabled = !checked
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: 118
+                    height: 32
+                    radius: 6
+                    color: startupContinueMouse.pressed ? "#2A3946" : (startupContinueMouse.containsMouse ? "#324555" : "#273643")
+                    border.color: startupContinueMouse.containsMouse ? "#6B90AA" : "#4A6478"
+                    border.width: 1
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Continue"
+                        color: "#EAF4FF"
+                        font.pixelSize: 11
+                    }
+
+                    MouseArea {
+                        id: startupContinueMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton
+                        onClicked: overlay.startupMessageVisible = false
+                    }
+                }
+            }
+
+            MouseArea {
+                z: 0
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onPressed: function(mouse) {
+                    mouse.accepted = true
+                }
+                onClicked: function(mouse) {
+                    if (mouse.button === Qt.RightButton) {
+                        overlay.handleBackAction()
+                    }
+                    mouse.accepted = true
+                }
             }
         }
     }

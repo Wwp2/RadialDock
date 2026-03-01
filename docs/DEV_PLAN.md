@@ -35,7 +35,7 @@ This file is the single source of truth for project planning and milestone track
 | 10 | Center settings menu + runtime preferences | DONE | Center click opens settings panel with confirmation actions and persisted runtime controls. |
 | 11 | Automatic refresh controls | DONE | Separate main-item and folder refresh toggles drive scan behavior; disabled checks do not touch disk; manual refresh respects enabled toggles. |
 | 12 | Self install/uninstall via same EXE | DONE | Install/uninstall flows create/remove marker, shortcuts, optional startup, and startup can be toggled later from settings. |
-| 13 | PyInstaller onefile + smoke test | IN PROGRESS | `dist\\RadialDockInstaller.exe` produced; smoke test covers install, launch, hotkey, and basic open. |
+| 13 | PyInstaller onefile + smoke test | IN PROGRESS | `dist\\RadialDockInstaller-<version>.exe` produced; smoke test covers install, launch, hotkey, and basic open. |
 
 ## Detailed Work Plan
 
@@ -137,15 +137,22 @@ This file is the single source of truth for project planning and milestone track
 ### Step 12 (Install/uninstall + startup integration)
 
 1. Build the EXE with `./build.ps1`.
-2. Run `dist\\RadialDockInstaller.exe --install`.
+2. Run `dist\\RadialDockInstaller-<version>.exe --install`.
 3. Confirm the installer asks about Start Menu, desktop shortcut, and startup.
 4. Confirm the installed marker appears under `%LocalAppData%\\RadialDock`.
 5. Confirm the installed runtime uses `%LocalAppData%\\RadialDock\\config.json` for its settings instead of `%APPDATA%`.
 6. Leave the installed runtime running, then run uninstall from the installer and confirm the running dock closes automatically.
 7. Launch the app and open settings.
 8. In `App Control`, toggle `Launch on startup` on and off and confirm it creates/removes the startup shortcut.
-9. Run `dist\\RadialDockInstaller.exe --uninstall`.
+9. Run `dist\\RadialDockInstaller-<version>.exe --uninstall`.
 10. Confirm shortcuts, config, cache, and the install directory are removed.
+11. Launch the installed app from the desktop or Start Menu shortcut and confirm:
+    - the radial menu opens centered on screen
+    - the startup message appears
+    - disabling the startup message stops future shortcut-launch popups
+12. Confirm the app version shown in Settings matches the version you entered during the build.
+13. Confirm fresh installs start with an empty ring and the startup message explains how to add/remove items.
+14. While the startup message remains enabled, confirm it appears every time the radial dock is opened until the user turns it off.
 
 ## Risk Register
 
@@ -165,3 +172,7 @@ This file is the single source of truth for project planning and milestone track
 - 2026-03-01: Step 12 uses Windows shell shortcuts plus a startup shortcut, and startup can be toggled later from the running app settings.
 - 2026-03-01: The packaged distributable is named `RadialDockInstaller.exe`, while the installed runtime binary remains `RadialDock.exe` in `%LocalAppData%\\RadialDock`.
 - 2026-03-01: The installed runtime now keeps its persistent state inside `%LocalAppData%\\RadialDock`, so uninstall removes the app and its remembered state together.
+- 2026-03-01: Desktop and Start Menu shortcuts now launch the app with a dedicated shortcut-launch flag so the first-run experience can open centered and show an optional startup message without affecting hotkey launches.
+- 2026-03-01: Builds now store the chosen version in `VERSION.txt`; the installer filename is versioned and the running app shows that version in Settings.
+- 2026-03-01: While the startup message is enabled, the app now shows the centered startup help on any app launch path, not only shortcut launches.
+- 2026-03-01: The build version prompt runs in the terminal and accepts Enter to keep the last saved version, while startup help remains visible on every dock open while enabled.

@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Property, Qt, Signal, Slot, QProcess
+from PySide6.QtCore import QObject, Property, Qt, Signal, Slot, QProcess, QTimer
 from PySide6.QtGui import QCursor
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication
@@ -19,6 +19,7 @@ FORBIDDEN_MOUSE_SHORTCUTS = {"MouseLeft", "MouseRight"}
 
 class OverlayController(QObject):
     hotkeyTriggered = Signal(int, int)
+    shortcutLaunchRequested = Signal()
     hideRequested = Signal()
     hotkeyApplyResult = Signal(bool, str, str)
     launchOnStartupChanged = Signal()
@@ -31,7 +32,7 @@ class OverlayController(QObject):
     ) -> None:
         super().__init__()
         self._model = model
-        self._launch_args = list(launch_args)
+        self._launch_args = [arg for arg in launch_args if arg != "--shortcut-launch"]
         self._hotkey_manager = hotkey_manager
         self._suppress_model_hotkey_apply = False
         self._model.hotkeyChanged.connect(self._apply_model_hotkey)
@@ -39,6 +40,10 @@ class OverlayController(QObject):
     def on_hotkey(self) -> None:
         pos = QCursor.pos()
         self.hotkeyTriggered.emit(pos.x(), pos.y())
+
+    @Slot()
+    def requestShortcutLaunch(self) -> None:
+        self.shortcutLaunchRequested.emit()
 
     def _is_forbidden_shortcut(self, spec: HotkeySpec) -> bool:
         return spec.kind == "mouse" and spec.mouse_button in FORBIDDEN_MOUSE_SHORTCUTS
@@ -143,6 +148,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--install", action="store_true", help="Install the app")
     parser.add_argument("--uninstall", action="store_true", help="Uninstall the app")
     parser.add_argument("--portable", action="store_true", help="Run in portable mode")
+    parser.add_argument(
+        "--shortcut-launch",
+        action="store_true",
+        help="Internal flag for Start Menu/Desktop shortcut launches",
+    )
     return parser.parse_args(argv)
 
 
@@ -212,6 +222,9 @@ def main(argv: list[str] | None = None) -> int:
     if not hotkey.register_spec(initial_spec):
         print(f"Failed to register global hotkey: {model.settings.hotkey}", file=sys.stderr)
         return 2
+
+    if args.shortcut_launch or model.startupMessageEnabled:
+        QTimer.singleShot(0, controller.requestShortcutLaunch)
 
     exit_code = app.exec()
     hotkey.unregister()

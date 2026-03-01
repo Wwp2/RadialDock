@@ -669,3 +669,62 @@
   - fails explicitly if the old EXE cannot be removed
   - checks `$LASTEXITCODE` after PyInstaller and only prints success if the new EXE actually exists
 - This prevents the previous false-positive `Build complete` message after a failed build caused by a locked output file.
+
+### 2026-03-01 - Change 51 (Shortcut-launch startup experience)
+
+- Added a dedicated `--shortcut-launch` mode for desktop and Start Menu shortcut launches.
+- Updated `src/radialdock/install.py` so desktop and Start Menu shortcuts include that flag, while the Windows startup shortcut does not.
+- Updated `src/radialdock/app.py` to emit a startup-launch signal on that path after the UI is loaded.
+- Updated `ui/Main.qml` so shortcut-launches:
+  - open the radial menu centered on screen
+  - optionally show a startup message card explaining:
+    - what RadialDock is
+    - the default shortcut (`Ctrl+Space`)
+    - that the shortcut can be changed in Settings
+- Added a persisted `startup_message_enabled` setting in `src/radialdock/model.py`.
+- The startup message includes a `Turn Off Startup Message` toggle, and it never appears for normal hotkey launches.
+
+### 2026-03-01 - Change 52 (Build script no-process guard)
+
+- Replaced the `taskkill` call in `build.ps1` with a PowerShell-native process stop:
+  - `Get-Process ... | Stop-Process -Force`
+- This avoids the noisy `RadialDockInstaller.exe not found` error when no old installer process is running.
+- Result: rebuilding is quiet in the normal case where no previous installer instance is active.
+
+### 2026-03-01 - Change 53 (Startup card click fix + versioned builds)
+
+- Fixed `ui/Main.qml` startup card hit-testing:
+  - the startup card content column now renders above the card-wide mouse catcher
+  - `Turn Off Startup Message` and `Continue` are now clickable
+- Added `VERSION.txt` at repo root with default `0.0.0`.
+- Updated `build.ps1` so every build now:
+  - prompts for a version number (default is the saved value from `VERSION.txt`)
+  - saves that version back to `VERSION.txt`
+  - includes `VERSION.txt` in the PyInstaller bundle
+  - outputs a versioned installer name: `RadialDockInstaller-<version>.exe`
+- Added `appVersion` in `src/radialdock/model.py`, which reads the bundled/source `VERSION.txt`.
+- Added version display to the Settings UI in `ui/Settings.qml`.
+
+### 2026-03-01 - Change 54 (Startup help on any launch + empty fresh ring)
+
+- Updated `src/radialdock/app.py` so the centered startup help now appears on any app launch while the startup message setting is enabled.
+- If the user turns the startup message off, normal non-shortcut launches return to starting hidden, while shortcut launches still open centered.
+- Removed the old placeholder default ring items in `src/radialdock/model.py`; fresh installs now start with an empty ring.
+- Expanded the startup help text in `ui/Main.qml` to explain how to:
+  - add items by dragging files/folders/shortcuts in from Explorer
+  - remove items by dragging them out of the ring
+
+### 2026-03-01 - Change 55 (Prefilled build version prompt + repeat startup help)
+
+- Replaced the console `Read-Host` version prompt in `build.ps1` with a prefilled Windows input dialog.
+- The dialog now opens with the last saved version already in the input field, so pressing Enter accepts it unchanged.
+- Updated `ui/Main.qml` so the startup help appears on every radial-dock open while the startup message setting remains enabled.
+- Result:
+  - version iteration is faster during packaging
+  - users keep seeing the onboarding help until they explicitly turn it off
+
+### 2026-03-01 - Change 56 (Build version prompt moved back to terminal)
+
+- Replaced the temporary GUI version dialog in `build.ps1` with a terminal prompt again.
+- The build now prints the last saved version and accepts plain Enter to keep it unchanged.
+- This keeps the build flow fully in the terminal while preserving the saved default-version behavior.
