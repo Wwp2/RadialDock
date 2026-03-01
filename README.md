@@ -60,6 +60,8 @@ Interaction notes:
 - Image previews use square cover-cropped cached thumbnails, so they fill the UI shape without stretching.
 - Missing image previews now load in the background, so folder/menu open stays responsive while thumbnails fill in.
 - Folder views now open first and load refreshed contents after, while cached-only mode still opens immediately with no new scan.
+- Automatic refresh checks now run in the background after the UI opens, so the dock can appear before filesystem scans finish.
+- The app also does a light hidden warm-up after startup to preload current ring icon sources before the first hotkey open.
 - When the startup message is enabled, the startup help appears every time the radial dock is opened until the user turns it off.
 - On app launch, the radial menu opens centered on screen so users immediately see that it is running.
 - The startup message explains the app, the default shortcut (`Ctrl+Space`), where to change it, and how to add/remove ring items. It can be turned off.

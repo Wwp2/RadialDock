@@ -223,6 +223,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Failed to register global hotkey: {model.settings.hotkey}", file=sys.stderr)
         return 2
 
+    QTimer.singleShot(900, model.warmStartupCaches)
+
     if args.shortcut_launch or model.startupMessageEnabled:
         QTimer.singleShot(0, controller.requestShortcutLaunch)
 

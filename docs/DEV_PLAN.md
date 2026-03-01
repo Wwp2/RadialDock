@@ -153,6 +153,7 @@ This file is the single source of truth for project planning and milestone track
 12. Confirm the app version shown in Settings matches the version you entered during the build.
 13. Confirm fresh installs start with an empty ring and the startup message explains how to add/remove items.
 14. While the startup message remains enabled, confirm it appears every time the radial dock is opened until the user turns it off.
+15. With automatic refresh enabled, confirm the dock still opens immediately and stale items disappear shortly after if background refresh finds them.
 
 ## Risk Register
 
@@ -176,3 +177,4 @@ This file is the single source of truth for project planning and milestone track
 - 2026-03-01: Builds now store the chosen version in `VERSION.txt`; the installer filename is versioned and the running app shows that version in Settings.
 - 2026-03-01: While the startup message is enabled, the app now shows the centered startup help on any app launch path, not only shortcut launches.
 - 2026-03-01: The build version prompt runs in the terminal and accepts Enter to keep the last saved version, while startup help remains visible on every dock open while enabled.
+- 2026-03-01: Automatic refresh now runs asynchronously after the dock opens, and the app performs a light hidden icon warm-up shortly after startup to reduce the first hotkey-open cost.

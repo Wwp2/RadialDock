@@ -728,3 +728,14 @@
 - Replaced the temporary GUI version dialog in `build.ps1` with a terminal prompt again.
 - The build now prints the last saved version and accepts plain Enter to keep it unchanged.
 - This keeps the build flow fully in the terminal while preserving the saved default-version behavior.
+
+### 2026-03-01 - Change 57 (Async auto-refresh + startup warm-up)
+
+- Updated `src/radialdock/model.py` so `refreshEnabledData()` no longer performs filesystem refresh work on the visible open path.
+- The dock now:
+  - opens immediately
+  - runs icon/folder refresh in a background worker
+  - applies stale-item removal and folder-cache updates on the main thread after the scan finishes
+- Added a revision guard so background refresh results are skipped if settings changed while the refresh was running.
+- Added `warmStartupCaches()` in `src/radialdock/model.py` to prefill current ring icon sources while the app is hidden.
+- Updated `src/radialdock/app.py` to schedule that light warm-up shortly after startup.

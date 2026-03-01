@@ -154,6 +154,7 @@ class AppModel(QObject):
     closeAfterLaunchChanged = Signal()
     folderEntriesReady = Signal(str, "QVariantList")
     _folderEntriesResolved = Signal(str, object)
+    _refreshResolved = Signal(int, object, object, bool)
     previewVersionChanged = Signal()
     ringItemsChanged = Signal()
     animationSpeedScaleChanged = Signal()
@@ -163,6 +164,8 @@ class AppModel(QObject):
     def __init__(self, paths: AppPaths) -> None:
         super().__init__()
         self.paths = paths
+        self._settings_revision = 0
+        self._refresh_pending = False
         self.settings = self._load_settings()
         self._icon_provider = QFileIconProvider()
         self._thumb_cache = ThumbnailCache(paths.cache_dir)
@@ -174,6 +177,10 @@ class AppModel(QObject):
         self._preview_lock = threading.Lock()
         self._folderEntriesResolved.connect(
             self._handle_folder_entries_resolved,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self._refreshResolved.connect(
+            self._handle_refresh_resolved,
             Qt.ConnectionType.QueuedConnection,
         )
         self._app_version = resolve_app_version()
@@ -225,6 +232,7 @@ class AppModel(QObject):
 
     def _save_settings(self, settings: Settings) -> None:
         payload = asdict(settings)
+        self._settings_revision += 1
         self.paths.config_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     def get_hotkey(self) -> str:
@@ -607,6 +615,47 @@ class AppModel(QObject):
             }
         return changed
 
+    def _clone_items(self) -> list[DockItem]:
+        return [
+            DockItem(path=item.path, label=item.label, kind=item.kind, color=item.color)
+            for item in self.settings.items
+        ]
+
+    def _clone_folder_cache(self) -> dict[str, list[dict[str, str]]]:
+        return {
+            folder_path: [dict(entry) for entry in entries]
+            for folder_path, entries in self.settings.folder_cache.items()
+        }
+
+    def _refresh_ring_items_snapshot(
+        self,
+        items: list[DockItem],
+        folder_cache: dict[str, list[dict[str, str]]],
+        enabled: bool,
+    ) -> tuple[list[DockItem], dict[str, list[dict[str, str]]], bool]:
+        if not enabled:
+            return items, folder_cache, False
+
+        next_items = [
+            item
+            for item in items
+            if not item.path or self._path_exists(item.path)
+        ]
+        changed = len(next_items) != len(items)
+        next_cache = folder_cache
+        if changed:
+            valid_folder_paths = {
+                item.path
+                for item in next_items
+                if item.kind == "folder" and item.path
+            }
+            next_cache = {
+                path: entries
+                for path, entries in folder_cache.items()
+                if path in valid_folder_paths
+            }
+        return next_items, next_cache, changed
+
     def _build_folder_entries(self, folder: Path, refresh_on_open: bool) -> list[dict[str, str]]:
         entries: list[dict[str, str]] = []
         children = sorted(
@@ -652,14 +701,88 @@ class AppModel(QObject):
             changed = True
         return changed
 
-    @Slot()
-    def refreshEnabledData(self) -> None:
-        ring_changed = self._refresh_ring_items()
-        folder_changed = self._refresh_folder_cache()
-        if ring_changed or folder_changed:
-            self._save_settings(self.settings)
+    def _refresh_folder_cache_snapshot(
+        self,
+        items: list[DockItem],
+        folder_cache: dict[str, list[dict[str, str]]],
+        enabled: bool,
+    ) -> tuple[dict[str, list[dict[str, str]]], bool]:
+        if not enabled:
+            return folder_cache, False
+
+        changed = False
+        next_cache: dict[str, list[dict[str, str]]] = {}
+        for item in items:
+            if item.kind != "folder" or not item.path:
+                continue
+            folder = Path(item.path)
+            if not folder.exists() or not folder.is_dir():
+                continue
+            try:
+                entries = self._build_folder_entries(folder, refresh_on_open=True)
+            except OSError:
+                continue
+            cached_entries = folder_cache.get(item.path, [])
+            if cached_entries != entries:
+                changed = True
+            next_cache[item.path] = entries
+
+        if next_cache != folder_cache:
+            changed = True
+        return next_cache, changed
+
+    @Slot(int, object, object, bool)
+    def _handle_refresh_resolved(
+        self,
+        revision: int,
+        next_items_obj: object,
+        next_cache_obj: object,
+        ring_changed: bool,
+    ) -> None:
+        self._refresh_pending = False
+
+        if revision != self._settings_revision:
+            return
+
+        next_items = next_items_obj if isinstance(next_items_obj, list) else []
+        next_cache = next_cache_obj if isinstance(next_cache_obj, dict) else {}
+        folder_changed = self.settings.folder_cache != next_cache
+
+        if not ring_changed and not folder_changed:
+            return
+
+        self.settings.items = next_items
+        self.settings.folder_cache = next_cache
+        self._save_settings(self.settings)
         if ring_changed:
             self.ringItemsChanged.emit()
+
+    @Slot()
+    def refreshEnabledData(self) -> None:
+        if self._refresh_pending:
+            return
+
+        items_snapshot = self._clone_items()
+        folder_cache_snapshot = self._clone_folder_cache()
+        revision = self._settings_revision
+        icon_refresh_enabled = self.settings.automatic_icon_refresh
+        folder_refresh_enabled = self.settings.automatic_folder_refresh
+        self._refresh_pending = True
+
+        def worker() -> None:
+            next_items, next_cache, ring_changed = self._refresh_ring_items_snapshot(
+                items_snapshot,
+                folder_cache_snapshot,
+                icon_refresh_enabled,
+            )
+            next_cache, _ = self._refresh_folder_cache_snapshot(
+                next_items,
+                next_cache,
+                folder_refresh_enabled,
+            )
+            self._refreshResolved.emit(revision, next_items, next_cache, ring_changed)
+
+        self._preview_executor.submit(worker)
 
     @Slot()
     def manualRefreshEnabled(self) -> None:
@@ -675,6 +798,16 @@ class AppModel(QObject):
             self._save_settings(self.settings)
         if ring_changed:
             self.ringItemsChanged.emit()
+
+    @Slot()
+    def warmStartupCaches(self) -> None:
+        # Warm icon provider and in-memory icon cache while the app is hidden,
+        # so the first hotkey open does less work on the visible path.
+        for item in self.settings.items[:24]:
+            try:
+                self.iconDataUrl(item.path, item.kind, item.label)
+            except Exception:
+                continue
 
     @Slot(str, result=bool)
     def openPath(self, path: str) -> bool:
