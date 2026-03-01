@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, Signal, Slot, QProcess
+from PySide6.QtCore import QObject, Property, Qt, Signal, Slot, QProcess
 from PySide6.QtGui import QCursor
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication
@@ -21,6 +21,7 @@ class OverlayController(QObject):
     hotkeyTriggered = Signal(int, int)
     hideRequested = Signal()
     hotkeyApplyResult = Signal(bool, str, str)
+    launchOnStartupChanged = Signal()
 
     def __init__(
         self,
@@ -53,6 +54,13 @@ class OverlayController(QObject):
     @Slot()
     def resetAllQuickSettings(self) -> None:
         self._model.resetQuickSettings()
+
+    def get_launch_on_startup_enabled(self) -> bool:
+        return install.is_startup_enabled()
+
+    def set_launch_on_startup_enabled(self, value: bool) -> None:
+        install.set_startup_enabled(bool(value), launch_args=self._launch_args)
+        self.launchOnStartupChanged.emit()
 
     @Slot()
     def quitApp(self) -> None:
@@ -122,6 +130,13 @@ class OverlayController(QObject):
 
         self._hotkey_manager.register_spec(spec)
 
+    launchOnStartupEnabled = Property(
+        bool,
+        get_launch_on_startup_enabled,
+        set_launch_on_startup_enabled,
+        notify=launchOnStartupChanged,
+    )
+
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Radial Dock Launcher")
@@ -140,6 +155,10 @@ def configure_high_dpi() -> None:
 
 
 def resolve_ui_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        bundle_root = getattr(sys, "_MEIPASS", "")
+        if bundle_root:
+            return Path(bundle_root) / "ui"
     root = Path(__file__).resolve().parents[2]
     return root / "ui"
 
@@ -149,9 +168,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(launch_args)
 
     if args.install:
-        return install.install_self()
+        return install.install_self(launch_args)
     if args.uninstall:
         return install.uninstall_self()
+    if not args.portable and install.should_offer_manage_prompt():
+        if install.is_installed():
+            if install.offer_uninstall_prompt():
+                return install.uninstall_self()
+        else:
+            if install.offer_install_prompt():
+                return install.install_self(launch_args)
 
     configure_high_dpi()
     app = QApplication(sys.argv)

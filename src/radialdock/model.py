@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
@@ -102,11 +103,37 @@ class AppPaths:
     def from_environment(cls, portable: bool) -> "AppPaths":
         if portable:
             root = Path.cwd() / ".radialdock"
+        elif cls._should_use_installed_runtime_root():
+            root = cls._installed_runtime_root()
         else:
             appdata = Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")))
             root = appdata / APP_DIR_NAME
         cache = root / "cache"
         return cls(config_dir=root, cache_dir=cache, config_file=root / "config.json")
+
+    @staticmethod
+    def _installed_runtime_root() -> Path:
+        local_appdata = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
+        return local_appdata / APP_DIR_NAME
+
+    @classmethod
+    def _should_use_installed_runtime_root(cls) -> bool:
+        if not getattr(sys, "frozen", False):
+            return False
+
+        try:
+            executable = Path(sys.executable).resolve()
+        except OSError:
+            return False
+
+        runtime_root = cls._installed_runtime_root()
+        if executable.name.lower() != "radialdock.exe":
+            return False
+
+        try:
+            return executable.parent == runtime_root.resolve()
+        except OSError:
+            return False
 
 
 class AppModel(QObject):

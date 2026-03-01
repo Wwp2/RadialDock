@@ -6,11 +6,11 @@ This file is the single source of truth for project planning and milestone track
 
 ## Current Position
 
-- Date: 2026-02-28
+- Date: 2026-03-01
 - Active phase: MVP buildout
-- Current step: **Step 12**
-- Completed: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7, Step 8, Step 9, Step 10, Step 11**
-- In progress: **Step 12**
+- Current step: **Step 13**
+- Completed: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7, Step 8, Step 9, Step 10, Step 11, Step 12**
+- In progress: **Step 13**
 
 ## Status Legend
 
@@ -34,8 +34,8 @@ This file is the single source of truth for project planning and milestone track
 | 9 | Thumbnail cache (SQLite + disk) | DONE | Thumbnails generated/cached by path + mtime; cache hit path works. |
 | 10 | Center settings menu + runtime preferences | DONE | Center click opens settings panel with confirmation actions and persisted runtime controls. |
 | 11 | Automatic refresh controls | DONE | Separate main-item and folder refresh toggles drive scan behavior; disabled checks do not touch disk; manual refresh respects enabled toggles. |
-| 12 | Self install/uninstall via same EXE | IN PROGRESS | `--install`, `--uninstall`, installed marker, copy to `%LocalAppData%\\RadialDock`, Start Menu shortcut. |
-| 13 | PyInstaller onefile + smoke test | TODO | `dist\\RadialDock.exe` produced; smoke test covers launch/hotkey/basic open. |
+| 12 | Self install/uninstall via same EXE | DONE | Install/uninstall flows create/remove marker, shortcuts, optional startup, and startup can be toggled later from settings. |
+| 13 | PyInstaller onefile + smoke test | IN PROGRESS | `dist\\RadialDockInstaller.exe` produced; smoke test covers install, launch, hotkey, and basic open. |
 
 ## Detailed Work Plan
 
@@ -103,7 +103,8 @@ This file is the single source of truth for project planning and milestone track
 ### Step 12 - Install/Uninstall
 
 - Install copies EXE to `%LocalAppData%\\RadialDock`.
-- Create Start Menu shortcut.
+- Installer asks if the user wants to create Start Menu and/or desktop shortcut.
+- The installer should have an option to let the program automatically open on system startup. This also needs to be added in to the app settings at the bottom so that if during installation the user declined in the auto startup they can later set the app to open automatically after they restart their computer.
 - Write installed marker and support both interactive and CLI flows.
 - Uninstall removes shortcut, marker, and installed files safely.
 
@@ -133,16 +134,18 @@ This file is the single source of truth for project planning and milestone track
 
 ## Latest Verification Checklist
 
-### Step 11 (Automatic refresh controls)
+### Step 12 (Install/uninstall + startup integration)
 
-1. Launch app with `python -m radialdock.app`.
-2. Press `Ctrl+Space`.
-3. Click the center core to open settings.
-4. Leave `Automatic icon refresh` on, delete one file linked in the ring, then open the menu again.
-5. Confirm the missing ring item is removed automatically.
-6. Turn `Automatic folder refresh` off, open a folder once, then change that folder in Explorer.
-7. Reopen the same folder and confirm it still shows the cached listing instead of rescanning.
-8. Click `Manual Refresh` and confirm only the currently enabled checks run.
+1. Build the EXE with `./build.ps1`.
+2. Run `dist\\RadialDockInstaller.exe --install`.
+3. Confirm the installer asks about Start Menu, desktop shortcut, and startup.
+4. Confirm the installed marker appears under `%LocalAppData%\\RadialDock`.
+5. Confirm the installed runtime uses `%LocalAppData%\\RadialDock\\config.json` for its settings instead of `%APPDATA%`.
+6. Leave the installed runtime running, then run uninstall from the installer and confirm the running dock closes automatically.
+7. Launch the app and open settings.
+8. In `App Control`, toggle `Launch on startup` on and off and confirm it creates/removes the startup shortcut.
+9. Run `dist\\RadialDockInstaller.exe --uninstall`.
+10. Confirm shortcuts, config, cache, and the install directory are removed.
 
 ## Risk Register
 
@@ -159,3 +162,6 @@ This file is the single source of truth for project planning and milestone track
 - 2026-02-27: Use compact folder list fallback when folder entry count exceeds 50 (threshold kept easy to edit in QML for now).
 - 2026-02-27: Runtime quick settings are persisted in user config (`config.json`) so source files remain unchanged.
 - 2026-02-28: Split refresh behavior into separate user-controlled icon and folder toggles; when a refresh type is disabled, the app avoids corresponding existence scans and uses cached folder listings only.
+- 2026-03-01: Step 12 uses Windows shell shortcuts plus a startup shortcut, and startup can be toggled later from the running app settings.
+- 2026-03-01: The packaged distributable is named `RadialDockInstaller.exe`, while the installed runtime binary remains `RadialDock.exe` in `%LocalAppData%\\RadialDock`.
+- 2026-03-01: The installed runtime now keeps its persistent state inside `%LocalAppData%\\RadialDock`, so uninstall removes the app and its remembered state together.

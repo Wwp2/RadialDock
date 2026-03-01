@@ -149,16 +149,18 @@ Item {
     }
 
     function refreshFromModel() {
-        if (typeof appModel === "undefined" || !appModel) {
-            return
+        if (typeof appModel !== "undefined" && appModel) {
+            displayedHotkey = appModel.hotkey
+            speedField.text = Number(appModel.animationSpeedScale).toFixed(2)
+            thresholdField.text = String(appModel.folderCompactThreshold)
+            animationsSwitch.checked = !!appModel.animationsEnabled
+            iconRefreshSwitch.checked = !!appModel.automaticIconRefresh
+            folderRefreshSwitch.checked = !!appModel.automaticFolderRefresh
+            closeAfterLaunchSwitch.checked = !!appModel.closeAfterLaunch
         }
-        displayedHotkey = appModel.hotkey
-        speedField.text = Number(appModel.animationSpeedScale).toFixed(2)
-        thresholdField.text = String(appModel.folderCompactThreshold)
-        animationsSwitch.checked = !!appModel.animationsEnabled
-        iconRefreshSwitch.checked = !!appModel.automaticIconRefresh
-        folderRefreshSwitch.checked = !!appModel.automaticFolderRefresh
-        closeAfterLaunchSwitch.checked = !!appModel.closeAfterLaunch
+        if (typeof backend !== "undefined" && backend && startupOnBootSwitch) {
+            startupOnBootSwitch.checked = !!backend.launchOnStartupEnabled
+        }
     }
 
     onVisibleChanged: {
@@ -204,6 +206,9 @@ Item {
             } else if (typeof appModel !== "undefined" && appModel) {
                 settings.displayedHotkey = appModel.hotkey
             }
+        }
+        function onLaunchOnStartupChanged() {
+            settings.refreshFromModel()
         }
     }
 
@@ -708,6 +713,40 @@ Item {
             color: "#C6DCE8"
             font.pixelSize: 12
             font.bold: true
+        }
+
+        Row {
+            width: parent.width
+            height: 36
+            spacing: 10
+
+            Text {
+                text: "Launch on startup"
+                color: "#D7E8F4"
+                font.pixelSize: 12
+                width: 150
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Switch {
+                id: startupOnBootSwitch
+                checked: false
+                anchors.verticalCenter: parent.verticalCenter
+                onToggled: {
+                    if (typeof backend !== "undefined" && backend) {
+                        backend.launchOnStartupEnabled = checked
+                    }
+                }
+            }
+
+            Text {
+                text: "On = create a Windows startup shortcut. Off = remove it."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                width: parent.width - 270
+                wrapMode: Text.WordWrap
+                anchors.verticalCenter: parent.verticalCenter
+            }
         }
 
         Row {

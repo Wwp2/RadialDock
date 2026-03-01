@@ -15,7 +15,8 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 - Step 9 complete: image thumbnails are cached via SQLite + disk cache and shown in folder tiles.
 - Step 10 complete: center-click settings menu with persisted runtime preferences and confirmations.
 - Step 11 complete: separate automatic icon/folder refresh controls plus manual refresh behavior.
-- Steps 12-13: planned/scaffolded, currently implementing Step 12 next.
+- Step 12 complete: install/uninstall flows, Windows shortcuts, and startup toggle integration.
+- Step 13: in progress, packaging smoke test and installer naming adjustments underway.
 
 ## Prerequisites
 
@@ -54,13 +55,15 @@ Interaction notes:
 - Settings now include `Restart App` and `Quit App` controls for full process control.
 - Settings include a `Close after launch` toggle to optionally dismiss the menu after opening real items.
 - Settings include a capture-based shortcut picker at the top for keyboard or mouse-button launch shortcuts.
+- Settings `App Control` now includes a `Launch on startup` toggle.
 - Image files now use cached thumbnail previews as full-bleed visuals in the main ring and tile-mode folder view.
 - Image previews use square cover-cropped cached thumbnails, so they fill the UI shape without stretching.
 - Missing image previews now load in the background, so folder/menu open stays responsive while thumbnails fill in.
 - Folder views now open first and load refreshed contents after, while cached-only mode still opens immediately with no new scan.
 - Folder sub-view adapts size to item count.
 - If folder contains more than `50` items, compact list mode is used.
-- Settings are persisted per user at `%APPDATA%\\RadialDock\\config.json`.
+- Source runs store settings at `%APPDATA%\\RadialDock\\config.json`.
+- Installed runs store settings and cache inside `%LocalAppData%\\RadialDock\\`.
 - Automatic refresh settings let users avoid disk existence scans when disabled.
 - `Manual Refresh` runs only the checks whose automatic toggle is currently off.
 
@@ -79,7 +82,13 @@ python -m radialdock.app
 - `python -m radialdock.app --install`
 - `python -m radialdock.app --uninstall`
 
-Install/uninstall is scaffolded now and will be expanded in Step 12 with full shortcuts and UX.
+Install/uninstall now supports:
+- Windows message-box driven install choices in the packaged EXE
+- Start Menu and desktop shortcuts
+- startup shortcut management
+- closing a running installed `RadialDock.exe` automatically before uninstall
+
+When running from source (`python -m radialdock.app`), install features are still available for development, but the true copy-to-`%LocalAppData%` EXE flow is intended for the packaged build.
 
 ## Build Single EXE
 
@@ -87,7 +96,15 @@ Install/uninstall is scaffolded now and will be expanded in Step 12 with full sh
 .\build.ps1
 ```
 
-This runs PyInstaller `--onefile` and outputs under `dist\`.
+This runs PyInstaller `--onefile` and outputs:
+
+- `dist\RadialDockInstaller.exe` for install/uninstall and first-time setup
+
+When installed, it copies itself to:
+
+- `%LocalAppData%\RadialDock\RadialDock.exe`
+
+The installed `RadialDock.exe` is the actual day-to-day launcher binary.
 
 ## Project Layout
 

@@ -2,9 +2,9 @@
 
 ## Current Step
 
-- Current step number: **12**
-- Implemented now: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7, Step 8, Step 9, Step 10, and Step 11**
-- Next: **Step 12 - Self install/uninstall via the same EXE**
+- Current step number: **13**
+- Implemented now: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7, Step 8, Step 9, Step 10, Step 11, and Step 12**
+- Next: **Step 13 - PyInstaller onefile packaging and smoke test**
 
 ## Status Snapshot
 
@@ -19,8 +19,8 @@
 - Step 9: Complete
 - Step 10: Complete (new settings menu step)
 - Step 11: Complete
-- Step 12: In progress
-- Step 13: Pending
+- Step 12: Complete
+- Step 13: In progress
 
 ## Change Log
 
@@ -605,3 +605,67 @@
 - If the user tries to set one, the shortcut is ignored and the status line reports the reason.
 - If an older saved config contains one of those values, startup now falls back to `Ctrl+Space` automatically.
 - Updated the shortcut helper text in `ui/Settings.qml` to make that restriction explicit.
+
+### 2026-03-01 - Change 47 (Step 12 complete: install/uninstall + startup integration)
+
+- Replaced the installer scaffold in `src/radialdock/install.py` with a real Windows install layer:
+  - installed marker metadata
+  - Start Menu shortcut creation
+  - desktop shortcut creation
+  - startup shortcut creation/removal
+  - safe uninstall cleanup
+- Packaged EXE behavior now supports install/uninstall from the same EXE:
+  - `--install`
+  - `--uninstall`
+  - running an external packaged EXE with no flags can offer install/uninstall via Windows message boxes
+- Added a live startup toggle to the app settings in `ui/Settings.qml` under `App Control`.
+- Added `launchOnStartupEnabled` to `src/radialdock/app.py` so the running app can create/remove the startup shortcut without reinstalling.
+- Full reset/default behavior remains focused on app quick settings; startup is managed as a separate system integration toggle.
+
+### 2026-03-01 - Step 12 Verification Instructions (Git Bash)
+
+1. Build the EXE:
+   - `./build.ps1`
+2. Run the installer:
+   - `dist/RadialDockInstaller.exe --install`
+3. Confirm the installer asks about:
+   - Start Menu shortcut
+   - desktop shortcut
+   - start on Windows login
+4. Confirm the install marker appears in `%LocalAppData%\\RadialDock`.
+5. Launch the app, open settings, and go to `App Control`.
+6. Toggle `Launch on startup` on and off and confirm the startup shortcut is created/removed in the Windows Startup folder.
+7. Run the uninstaller:
+   - `dist/RadialDockInstaller.exe --uninstall`
+8. Confirm shortcuts and the install directory are removed.
+
+### 2026-03-01 - Change 48 (Packaged UI path fix + installer rename)
+
+- Fixed packaged resource loading in `src/radialdock/app.py`:
+  - when running as a frozen PyInstaller app, the UI now loads from `sys._MEIPASS\\ui`
+  - this prevents the installed EXE from failing to find bundled QML files and exiting shortly after launch
+- Updated `build.ps1` so the distributable is now named `RadialDockInstaller.exe`.
+- Kept the installed runtime app name as `RadialDock.exe` under `%LocalAppData%\\RadialDock`.
+- Updated documentation and verification instructions to use the new installer filename.
+
+### 2026-03-01 - Change 49 (Installed runtime state isolation + uninstall auto-close)
+
+- Updated `src/radialdock/model.py` so the installed frozen runtime (`%LocalAppData%\\RadialDock\\RadialDock.exe`) now stores:
+  - `config.json`
+  - cache data
+  inside `%LocalAppData%\\RadialDock`
+- Source runs still use `%APPDATA%\\RadialDock`, so dev/test state no longer leaks into the installed runtime.
+- Updated `src/radialdock/install.py` so uninstall now force-closes any running installed `RadialDock.exe` before removing files.
+- Result:
+  - uninstall can proceed without the user manually quitting first
+  - uninstall/reinstall now starts from a clean installed state because the runtime config and cache live inside the removable install folder
+
+### 2026-03-01 - Change 50 (Build script locked-file handling)
+
+- Updated `build.ps1` to handle a stale locked `dist\\RadialDockInstaller.exe` more cleanly.
+- The build script now:
+  - attempts to stop a running `RadialDockInstaller.exe` before building
+  - removes the previous installer EXE before PyInstaller runs
+  - fails explicitly if the old EXE cannot be removed
+  - checks `$LASTEXITCODE` after PyInstaller and only prints success if the new EXE actually exists
+- This prevents the previous false-positive `Build complete` message after a failed build caused by a locked output file.
