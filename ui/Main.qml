@@ -420,7 +420,15 @@ Window {
 
                 Text {
                     width: parent.width
-                    text: "Right click works as a back button. Press Esc or click outside the menu to close it."
+                    text: "You can also create groups of icons. First click and hold on the center of the radial dock to enter group edit mode. You can then combine your icons together and rename groups."
+                    color: "#D5E7F3"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+
+                Text {
+                    width: parent.width
+                    text: "Right click works as a back button. Press Esc, right click or click outside the menu to close it."
                     color: "#A8C1D4"
                     font.pixelSize: 10
                     wrapMode: Text.WordWrap

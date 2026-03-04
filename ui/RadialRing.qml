@@ -12,6 +12,7 @@ Item {
     property bool groupOpen: false
     property string groupTitle: ""
     property var groupEntries: []
+    property int openGroupIndex: -1
     property real groupAnchorX: centerX
     property real groupAnchorY: centerY
     property bool groupNamingVisible: false
@@ -20,6 +21,7 @@ Item {
     property bool folderReturnToGroup: false
     property string folderReturnGroupTitle: ""
     property var folderReturnGroupEntries: []
+    property int folderReturnGroupIndex: -1
     property real folderReturnGroupAnchorX: centerX
     property real folderReturnGroupAnchorY: centerY
     property bool settingsOpen: false
@@ -275,6 +277,16 @@ Item {
         }
     }
 
+    function isPointInsideOpenGroup(px, py) {
+        if (!groupOpen) {
+            return false
+        }
+        var dx = px - groupAnchorX
+        var dy = py - groupAnchorY
+        var distance = Math.sqrt((dx * dx) + (dy * dy))
+        return distance <= (groupPanelSize * 0.5) + 10
+    }
+
     function isRemoveCandidateAt(px, py) {
         var dx = px - centerX
         var dy = py - centerY
@@ -367,6 +379,7 @@ Item {
             folderReturnToGroup = true
             folderReturnGroupTitle = groupTitle
             folderReturnGroupEntries = groupEntries
+            folderReturnGroupIndex = openGroupIndex
             folderReturnGroupAnchorX = groupAnchorX
             folderReturnGroupAnchorY = groupAnchorY
             groupOpen = false
@@ -374,6 +387,7 @@ Item {
             folderReturnToGroup = false
             folderReturnGroupTitle = ""
             folderReturnGroupEntries = []
+            folderReturnGroupIndex = -1
         }
         currentFolderPath = folderPath
         folderTitle = titleText || folderPath
@@ -398,11 +412,13 @@ Item {
         if (folderReturnToGroup) {
             var returnTitle = folderReturnGroupTitle
             var returnEntries = folderReturnGroupEntries
+            var returnGroupIndex = folderReturnGroupIndex
             var returnAnchorX = folderReturnGroupAnchorX
             var returnAnchorY = folderReturnGroupAnchorY
             applyFolderClosed()
             groupTitle = returnTitle
             groupEntries = returnEntries
+            openGroupIndex = returnGroupIndex
             groupAnchorX = returnAnchorX
             groupAnchorY = returnAnchorY
             groupOpen = true
@@ -438,6 +454,7 @@ Item {
         groupOpen = false
         groupTitle = ""
         groupEntries = []
+        openGroupIndex = -1
     }
 
     function toggleGroupEditMode() {
@@ -488,7 +505,70 @@ Item {
         groupAnchorY = pos.y
         groupTitle = entry.label || "Group"
         groupEntries = entry.children || []
+        openGroupIndex = itemIndex
         groupOpen = true
+    }
+
+    function moveGroupEntryToMain(groupIndex, px, py) {
+        if (groupIndex < 0 || groupIndex >= groupEntries.length) {
+            return
+        }
+        if (openGroupIndex < 0 || openGroupIndex >= ringItems.count) {
+            return
+        }
+
+        var movedEntry = cloneEntry(groupEntries[groupIndex])
+        var insertAt = Math.max(0, Math.min(nearestSlotForPoint(px, py), ringItems.count))
+        var nextEntries = []
+        for (var i = 0; i < groupEntries.length; i++) {
+            if (i === groupIndex) {
+                continue
+            }
+            nextEntries.push(cloneEntry(groupEntries[i]))
+        }
+        groupEntries = nextEntries
+
+        if (nextEntries.length <= 0) {
+            var removedIndex = openGroupIndex
+            ringItems.remove(removedIndex, 1)
+            closeGroupView()
+            if (insertAt > removedIndex) {
+                insertAt -= 1
+            }
+        } else if (nextEntries.length === 1) {
+            var onlyEntry = cloneEntry(nextEntries[0])
+            ringItems.set(openGroupIndex, {
+                "label": onlyEntry.label || "Item",
+                "color": onlyEntry.color || colorPalette[openGroupIndex % colorPalette.length],
+                "path": onlyEntry.path || "",
+                "kind": onlyEntry.kind || "file",
+                "childrenJson": JSON.stringify(onlyEntry.children || [])
+            })
+            closeGroupView()
+        } else {
+            ringItems.set(openGroupIndex, {
+                "label": groupTitle || "Group",
+                "color": ringItems.get(openGroupIndex).color || colorPalette[openGroupIndex % colorPalette.length],
+                "path": "",
+                "kind": "group",
+                "childrenJson": JSON.stringify(nextEntries)
+            })
+        }
+
+        insertAt = Math.max(0, Math.min(insertAt, ringItems.count))
+        ringItems.insert(insertAt, {
+            "label": movedEntry.label || "Item",
+            "color": movedEntry.color || colorPalette[insertAt % colorPalette.length],
+            "path": movedEntry.path || "",
+            "kind": movedEntry.kind || "file",
+            "childrenJson": JSON.stringify(movedEntry.children || [])
+        })
+
+        if (groupOpen && openGroupIndex >= 0 && insertAt <= openGroupIndex) {
+            openGroupIndex += 1
+        }
+
+        schedulePersist()
     }
 
     function mergeItems(sourceIndex, targetIndex) {
@@ -552,6 +632,7 @@ Item {
         folderReturnToGroup = false
         folderReturnGroupTitle = ""
         folderReturnGroupEntries = []
+        folderReturnGroupIndex = -1
         folderReturnGroupAnchorX = centerX
         folderReturnGroupAnchorY = centerY
     }
@@ -565,11 +646,13 @@ Item {
         groupOpen = false
         groupTitle = ""
         groupEntries = []
+        openGroupIndex = -1
         groupNamingVisible = false
         renameTargetIndex = -1
         folderReturnToGroup = false
         folderReturnGroupTitle = ""
         folderReturnGroupEntries = []
+        folderReturnGroupIndex = -1
         folderReturnGroupAnchorX = centerX
         folderReturnGroupAnchorY = centerY
         settingsOpen = false
@@ -1301,11 +1384,18 @@ Item {
                     }
                     return ""
                 }
+                property bool dragging: false
+                property real dragCenterX: pos.x
+                property real dragCenterY: pos.y
+                property real pointerOffsetX: 0
+                property real pointerOffsetY: 0
+                property real movedDistance: 0
 
                 width: 52
                 height: 52
-                x: pos.x - (width / 2)
-                y: pos.y - (height / 2)
+                x: dragging ? dragCenterX - (width / 2) : pos.x - (width / 2)
+                y: dragging ? dragCenterY - (height / 2) : pos.y - (height / 2)
+                z: dragging ? 420 : 0
 
                 Rectangle {
                     anchors.fill: parent
@@ -1367,7 +1457,52 @@ Item {
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.LeftButton
-                    onClicked: ring.activateGroupEntry(index)
+                    hoverEnabled: true
+                    preventStealing: true
+                    onPressed: function(mouse) {
+                        var p = groupOverlay.mapFromItem(this, mouse.x, mouse.y)
+                        dragCenterX = pos.x
+                        dragCenterY = pos.y
+                        dragging = true
+                        pointerOffsetX = p.x - dragCenterX
+                        pointerOffsetY = p.y - dragCenterY
+                        movedDistance = 0
+                        mouse.accepted = true
+                    }
+                    onPositionChanged: function(mouse) {
+                        if (!dragging) {
+                            return
+                        }
+                        var p = groupOverlay.mapFromItem(this, mouse.x, mouse.y)
+                        dragCenterX = p.x - pointerOffsetX
+                        dragCenterY = p.y - pointerOffsetY
+                        var dx = dragCenterX - pos.x
+                        var dy = dragCenterY - pos.y
+                        movedDistance = Math.sqrt((dx * dx) + (dy * dy))
+                    }
+                    onReleased: function(mouse) {
+                        if (!dragging) {
+                            return
+                        }
+                        var ringPoint = ring.mapFromItem(this, mouse.x, mouse.y)
+                        var wasClick = movedDistance < 8
+                        dragging = false
+                        dragCenterX = pos.x
+                        dragCenterY = pos.y
+                        if (wasClick) {
+                            ring.activateGroupEntry(index)
+                            return
+                        }
+                        if (!ring.isPointInsideOpenGroup(ringPoint.x, ringPoint.y)) {
+                            ring.moveGroupEntryToMain(index, ringPoint.x, ringPoint.y)
+                        }
+                    }
+                    onCanceled: {
+                        dragging = false
+                        dragCenterX = pos.x
+                        dragCenterY = pos.y
+                        movedDistance = 0
+                    }
                 }
             }
         }

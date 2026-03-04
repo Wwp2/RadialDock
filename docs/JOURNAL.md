@@ -16,6 +16,23 @@
 
 ## Change Log
 
+### 2026-03-04 - Change 68 (Fix repeated drag-out duplication from groups)
+
+- Fixed a bug when dragging multiple items out of the same open group in sequence.
+- Root cause: the open group's tracked top-level ring index could go stale when the first moved item was inserted before the group in the main ring.
+- That stale index caused later drag-outs to rewrite the wrong top-level item, which could duplicate groups and make previously moved items disappear.
+- The move-out path now updates the group state and adjusts the tracked group index correctly before the next drag.
+
+### 2026-03-04 - Change 67 (Drag items out of groups back to main ring)
+
+- Added normal-mode drag support for items inside an open group sub-ring.
+- Users can now drag a group item out of the small group ring and release it onto the main dock area to move it back to the top-level radial ring.
+- Group persistence now updates immediately when an item is moved out:
+  - groups shrink correctly
+  - a 1-item group collapses back into a normal single item
+  - an empty group is removed
+- Group folder back-navigation state now also tracks the source group index so this new move-out behavior stays consistent with folder return behavior.
+
 ### 2026-03-04 - Change 66 (Center group title in group overlay)
 
 - Moved the open group title from the top edge of the group sub-ring into the visual center of the group overlay.

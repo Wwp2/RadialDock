@@ -61,6 +61,7 @@ Interaction notes:
 - Hold the center core for 2 seconds to toggle `Group Edit Mode`.
 - In `Group Edit Mode`, drag one ring item onto another to merge them into a named group.
 - In normal mode, clicking a group opens a smaller radial sub-ring on top of the main dock.
+- In normal mode, you can drag an item out of an open group sub-ring and drop it onto the main dock to move it back to the top level.
 - Settings now include `Restart App` and `Quit App` controls for full process control.
 - Settings include a `Close after launch` toggle to optionally dismiss the menu after opening real items.
 - Settings include a capture-based shortcut picker at the top for keyboard or mouse-button launch shortcuts.
