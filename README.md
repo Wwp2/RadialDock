@@ -4,6 +4,10 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 
 ## MVP Status
 
+- Original step-based MVP plan is complete.
+- Current documented version: `0.9.5`
+- Ongoing development is now tracked by versioned fixes/features instead of the original step plan.
+
 - Step 1 complete: repo scaffold, `.venv`, dependencies, hello overlay QML window.
 - Step 2 complete: Windows global hotkey (`RegisterHotKey` + `WM_HOTKEY`) toggles overlay centered at cursor.
 - Step 3 complete: polished radial ring sample layout with smooth open/close animation.
@@ -16,7 +20,7 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 - Step 10 complete: center-click settings menu with persisted runtime preferences and confirmations.
 - Step 11 complete: separate automatic icon/folder refresh controls plus manual refresh behavior.
 - Step 12 complete: install/uninstall flows, Windows shortcuts, and startup toggle integration.
-- Step 13: in progress, packaging smoke test and installer naming adjustments underway.
+- Step 13 complete: packaging flow, installer naming, startup onboarding, and startup-time responsiveness improvements.
 
 ## Prerequisites
 
@@ -57,6 +61,7 @@ Interaction notes:
 - Settings include a capture-based shortcut picker at the top for keyboard or mouse-button launch shortcuts.
 - Settings `App Control` now includes a `Launch on startup` toggle.
 - Image files now use cached thumbnail previews as full-bleed visuals in the main ring and tile-mode folder view.
+- Windows `.lnk` and `.url` shortcuts now use Windows shell-aware icon extraction, so shortcut icons are much more likely to match what Explorer shows.
 - Image previews use square cover-cropped cached thumbnails, so they fill the UI shape without stretching.
 - Missing image previews now load in the background, so folder/menu open stays responsive while thumbnails fill in.
 - Folder views now open first and load refreshed contents after, while cached-only mode still opens immediately with no new scan.
@@ -111,6 +116,20 @@ When installed, it copies itself to:
 - `%LocalAppData%\RadialDock\RadialDock.exe`
 
 The installed `RadialDock.exe` is the actual day-to-day launcher binary.
+
+## Rebuild And Reinstall
+
+For a one-command rebuild using the current version in `VERSION.txt`, followed by uninstall and reinstall of the matching latest installer:
+
+```bash
+./rebuild_reinstall.sh
+```
+
+This script:
+- runs `build.ps1`
+- reads the current version from `VERSION.txt`
+- runs the matching installer with `--uninstall`
+- runs the same installer again with `--install`
 
 ## Project Layout
 

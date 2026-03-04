@@ -1,28 +1,31 @@
 # RadialDock Development Journal
 
-## Current Step
+## Current Version
 
-- Current step number: **13**
-- Implemented now: **Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7, Step 8, Step 9, Step 10, Step 11, and Step 12**
-- Next: **Step 13 - PyInstaller onefile packaging and smoke test**
+- Current version: **0.9.5**
+- Versioning mode: **Version-based tracking**
+- Original step-based plan: **Complete through Step 13**
+- Next tracking style: **Journal entries by version and targeted fixes/features**
 
 ## Status Snapshot
 
-- Step 1: Complete
-- Step 2: Complete
-- Step 3: Complete
-- Step 4: Complete
-- Step 5: Complete
-- Step 6: Complete
-- Step 7: Complete
-- Step 8: Complete
-- Step 9: Complete
-- Step 10: Complete (new settings menu step)
-- Step 11: Complete
-- Step 12: Complete
-- Step 13: In progress
+- Original development plan: Complete
+- `docs/DEV_PLAN.md`: Archived for reference only
+- Ongoing work: Post-plan fixes, polish, and new features tracked here
+- Current documented version: `0.9.5`
 
 ## Change Log
+
+### 2026-03-04 - Change 61 (Version bump to 0.9.5 + rebuild helper)
+
+- Confirmed the official documented version is now `0.9.5`.
+- Synced the journal and README to version `0.9.5`.
+- Added `rebuild_reinstall.sh` at the repo root for Git Bash use.
+- The helper script now:
+  - runs `build.ps1`
+  - reads the current version from `VERSION.txt`
+  - runs the matching installer with `--uninstall`
+  - runs the same installer again with `--install`
 
 ### 2026-02-27 - Change 1 (Repo bootstrap)
 
@@ -739,3 +742,31 @@
 - Added a revision guard so background refresh results are skipped if settings changed while the refresh was running.
 - Added `warmStartupCaches()` in `src/radialdock/model.py` to prefill current ring icon sources while the app is hidden.
 - Updated `src/radialdock/app.py` to schedule that light warm-up shortly after startup.
+
+### 2026-03-04 - Change 58 (Step-plan closure + version-based tracking)
+
+- The original step-based development plan is now considered complete through Step 13.
+- `docs/DEV_PLAN.md` is now treated as archived scope reference and should not be used for ongoing feature tracking.
+- Ongoing work will now be tracked by app version and targeted journal entries instead of step numbers.
+- Current documented version is now set to `0.9.4`.
+- Future version bumps will be applied only when explicitly requested by the user.
+
+### 2026-03-04 - Change 59 (Windows shortcut icon extraction fix)
+
+- Updated `src/radialdock/model.py` so `.lnk` shortcut icons no longer rely only on Qt's generic `QFileIconProvider`.
+- The shortcut icon flow now:
+  - reads shortcut metadata (`IconLocation`, `TargetPath`) through Windows shell COM
+  - extracts resource icons from `.exe`/`.dll`/`.icl`/`.cpl`/`.mun` icon locations when present
+  - falls back to the shortcut target's real icon when available
+  - falls back to Windows shell icon lookup for the `.lnk` itself
+- This should make shortcut icons in both the main ring and folder views match Explorer much more reliably, including many shell-linked and game shortcut cases that previously showed generic placeholders.
+
+### 2026-03-04 - Change 60 (`.url` shortcut icon support)
+
+- Extended the Windows shortcut icon path in `src/radialdock/model.py` to cover `.url` files as well as `.lnk`.
+- `.url` files are now treated as `shortcut` items for icon purposes.
+- The `.url` icon flow now:
+  - parses `IconFile` and `IconIndex` from the `InternetShortcut` section when present
+  - uses that icon resource if available
+  - otherwise falls back to the Windows shell icon for the `.url` file itself
+- This should fix missing icon graphics for pinned `.url` items and `.url` shortcuts shown inside folder views.

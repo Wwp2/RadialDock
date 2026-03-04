@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import configparser
+import ctypes
 import json
 import os
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from ctypes import wintypes
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -20,11 +23,18 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileIconProvider
 
 from radialdock.cache import ThumbnailCache
 from radialdock.shell_open import open_path
+
+try:
+    import pythoncom
+    from win32com.client import Dispatch
+except ImportError:  # pragma: no cover - dependency is part of requirements on Windows
+    pythoncom = None
+    Dispatch = None
 
 
 APP_DIR_NAME = "RadialDock"
@@ -57,6 +67,19 @@ IMAGE_EXTENSIONS = {
     ".tif",
     ".tiff",
 }
+
+SHGFI_ICON = 0x000000100
+SHGFI_LARGEICON = 0x000000000
+
+
+class SHFILEINFOW(ctypes.Structure):
+    _fields_ = [
+        ("hIcon", wintypes.HICON),
+        ("iIcon", ctypes.c_int),
+        ("dwAttributes", wintypes.DWORD),
+        ("szDisplayName", wintypes.WCHAR * 260),
+        ("szTypeName", wintypes.WCHAR * 80),
+    ]
 
 
 def resolve_app_version() -> str:
@@ -317,7 +340,7 @@ class AppModel(QObject):
     def _kind_for_path(self, candidate: Path) -> str:
         if candidate.is_dir():
             return "folder"
-        if candidate.suffix.lower() == ".lnk":
+        if candidate.suffix.lower() in {".lnk", ".url"}:
             return "shortcut"
         return "file"
 
@@ -327,7 +350,7 @@ class AppModel(QObject):
             return "file"
         candidate = Path(path)
         if not candidate.exists():
-            if candidate.suffix.lower() == ".lnk":
+            if candidate.suffix.lower() in {".lnk", ".url"}:
                 return "shortcut"
             return "file"
         return self._kind_for_path(candidate)
@@ -548,15 +571,206 @@ class AppModel(QObject):
         self.folderEntriesReady.emit(folder_path, normalized_entries)
 
     def _icon_for_item(self, path: str, kind: str) -> QIcon:
+        normalized_kind = (kind or "").lower()
+        suffix = Path(path).suffix.lower() if path else ""
+
+        if path and (normalized_kind == "shortcut" or suffix in {".lnk", ".url"}):
+            shortcut_icon = self._shortcut_icon(path)
+            if not shortcut_icon.isNull():
+                return shortcut_icon
+
         if path:
             file_info = QFileInfo(path)
             if file_info.exists():
                 return self._icon_provider.icon(file_info)
 
-        normalized_kind = (kind or "").lower()
         if normalized_kind == "folder":
             return self._icon_provider.icon(QFileIconProvider.IconType.Folder)
         return self._icon_provider.icon(QFileIconProvider.IconType.File)
+
+    def _shortcut_icon(self, shortcut_path: str) -> QIcon:
+        suffix = Path(shortcut_path).suffix.lower()
+        if suffix == ".url":
+            return self._url_shortcut_icon(shortcut_path)
+
+        icon_path, icon_index, target_path = self._read_shortcut_metadata(shortcut_path)
+
+        if icon_path:
+            custom_icon = self._icon_from_icon_location(icon_path, icon_index)
+            if not custom_icon.isNull():
+                return custom_icon
+
+        if target_path:
+            file_info = QFileInfo(target_path)
+            if file_info.exists():
+                target_icon = self._icon_provider.icon(file_info)
+                if not target_icon.isNull():
+                    return target_icon
+
+        shell_icon = self._shell_icon_for_path(shortcut_path)
+        if not shell_icon.isNull():
+            return shell_icon
+
+        return QIcon()
+
+    def _url_shortcut_icon(self, url_path: str) -> QIcon:
+        icon_path, icon_index = self._read_url_shortcut_metadata(url_path)
+
+        if icon_path:
+            custom_icon = self._icon_from_icon_location(icon_path, icon_index)
+            if not custom_icon.isNull():
+                return custom_icon
+
+        shell_icon = self._shell_icon_for_path(url_path)
+        if not shell_icon.isNull():
+            return shell_icon
+
+        return QIcon()
+
+    def _read_shortcut_metadata(self, shortcut_path: str) -> tuple[str, int, str]:
+        if Dispatch is None:
+            return "", 0, ""
+
+        shell = None
+        shortcut = None
+        if pythoncom is not None:
+            pythoncom.CoInitialize()
+        try:
+            shell = Dispatch("WScript.Shell")
+            shortcut = shell.CreateShortcut(str(shortcut_path))
+            icon_location = str(getattr(shortcut, "IconLocation", "") or "")
+            target_path = str(getattr(shortcut, "TargetPath", "") or "")
+        except Exception:
+            return "", 0, ""
+        finally:
+            shortcut = None
+            shell = None
+            if pythoncom is not None:
+                pythoncom.CoUninitialize()
+
+        icon_path = ""
+        icon_index = 0
+        if icon_location:
+            raw_icon = os.path.expandvars(icon_location.strip().strip('"'))
+            split_index = raw_icon.rfind(",")
+            if split_index > 0:
+                maybe_index = raw_icon[split_index + 1:].strip()
+                try:
+                    icon_index = int(maybe_index)
+                    icon_path = raw_icon[:split_index].strip().strip('"')
+                except ValueError:
+                    icon_path = raw_icon
+                    icon_index = 0
+            else:
+                icon_path = raw_icon
+
+        return icon_path, icon_index, target_path
+
+    def _read_url_shortcut_metadata(self, url_path: str) -> tuple[str, int]:
+        parser = configparser.ConfigParser(interpolation=None, strict=False)
+
+        for encoding in ("utf-8-sig", "utf-16", "cp1252"):
+            try:
+                with open(url_path, "r", encoding=encoding) as handle:
+                    parser.read_file(handle)
+                break
+            except (OSError, UnicodeError, configparser.Error):
+                parser = configparser.ConfigParser(interpolation=None, strict=False)
+        else:
+            return "", 0
+
+        if not parser.has_section("InternetShortcut"):
+            return "", 0
+
+        raw_icon_path = parser.get("InternetShortcut", "IconFile", fallback="").strip().strip('"')
+        raw_icon_index = parser.get("InternetShortcut", "IconIndex", fallback="0").strip()
+
+        icon_path = os.path.expandvars(raw_icon_path) if raw_icon_path else ""
+        try:
+            icon_index = int(raw_icon_index)
+        except ValueError:
+            icon_index = 0
+
+        return icon_path, icon_index
+
+    def _icon_from_icon_location(self, icon_path: str, icon_index: int) -> QIcon:
+        if not icon_path:
+            return QIcon()
+
+        candidate = Path(icon_path)
+        lower_path = icon_path.lower()
+
+        if candidate.exists() and lower_path.endswith(".ico"):
+            icon = QIcon(str(candidate))
+            if not icon.isNull():
+                return icon
+
+        if candidate.exists() and lower_path.endswith((".exe", ".dll", ".icl", ".cpl", ".mun")):
+            extracted = self._extract_icon_resource(str(candidate), icon_index)
+            if not extracted.isNull():
+                return extracted
+
+        if candidate.exists():
+            shell_icon = self._shell_icon_for_path(str(candidate))
+            if not shell_icon.isNull():
+                return shell_icon
+
+        return QIcon()
+
+    def _extract_icon_resource(self, icon_path: str, icon_index: int) -> QIcon:
+        large_icons = (wintypes.HICON * 1)()
+        small_icons = (wintypes.HICON * 1)()
+        extracted = ctypes.windll.shell32.ExtractIconExW(
+            icon_path,
+            icon_index,
+            large_icons,
+            small_icons,
+            1,
+        )
+        if extracted <= 0:
+            return QIcon()
+
+        handles = [handle for handle in (large_icons[0], small_icons[0]) if handle]
+        if not handles:
+            return QIcon()
+
+        try:
+            image = QImage.fromHICON(handles[0])
+            if image.isNull():
+                return QIcon()
+            pixmap = QPixmap.fromImage(image)
+            if pixmap.isNull():
+                return QIcon()
+            return QIcon(pixmap)
+        finally:
+            for handle in handles:
+                ctypes.windll.user32.DestroyIcon(handle)
+
+    def _shell_icon_for_path(self, path: str) -> QIcon:
+        if not path:
+            return QIcon()
+
+        file_info = SHFILEINFOW()
+        result = ctypes.windll.shell32.SHGetFileInfoW(
+            str(path),
+            0,
+            ctypes.byref(file_info),
+            ctypes.sizeof(file_info),
+            SHGFI_ICON | SHGFI_LARGEICON,
+        )
+        if not result or not file_info.hIcon:
+            return QIcon()
+
+        try:
+            image = QImage.fromHICON(file_info.hIcon)
+            if image.isNull():
+                return QIcon()
+            pixmap = QPixmap.fromImage(image)
+            if pixmap.isNull():
+                return QIcon()
+            return QIcon(pixmap)
+        finally:
+            ctypes.windll.user32.DestroyIcon(file_info.hIcon)
 
     def _pixmap_to_data_url(self, pixmap: QPixmap) -> str:
         payload = QByteArray()
