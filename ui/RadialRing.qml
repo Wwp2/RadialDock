@@ -8,6 +8,20 @@ Item {
     signal settingsBackRequested()
     property real openProgress: 1.0
     property bool isOpen: true
+    property bool groupEditMode: false
+    property bool groupOpen: false
+    property string groupTitle: ""
+    property var groupEntries: []
+    property real groupAnchorX: centerX
+    property real groupAnchorY: centerY
+    property bool groupNamingVisible: false
+    property string groupNameDraft: ""
+    property int renameTargetIndex: -1
+    property bool folderReturnToGroup: false
+    property string folderReturnGroupTitle: ""
+    property var folderReturnGroupEntries: []
+    property real folderReturnGroupAnchorX: centerX
+    property real folderReturnGroupAnchorY: centerY
     property bool settingsOpen: false
     property bool folderOpen: false
     property bool folderLoading: false
@@ -23,6 +37,7 @@ Item {
                                             : 50
     property int draggedIndex: -1
     property int hoverIndex: -1
+    property int mergeTargetIndex: -1
     property int removingIndex: -1
     property int removeIndexPending: -1
     property real dragDistance: 0.0
@@ -34,7 +49,7 @@ Item {
     readonly property real orbitRadius: Math.min(width, height) * 0.37
     readonly property real centerIgnoreRadius: Math.min(width, height) * 0.24
     readonly property real removeThreshold: Math.min(width, height) * 0.49
-    readonly property bool removeCandidate: draggedIndex >= 0 && dragDistance > removeThreshold
+    readonly property bool removeCandidate: !groupEditMode && draggedIndex >= 0 && dragDistance > removeThreshold
     readonly property bool subViewOpen: folderOpen || settingsOpen
     readonly property bool compactListMode: folderOpen && folderEntries.length > folderListFallbackThreshold
     readonly property int folderGridColumns: compactListMode ? 1 : estimatedGridColumns(folderEntries.length)
@@ -47,6 +62,8 @@ Item {
                                            : Math.max(180, folderGridRows * 104 + 58)
     readonly property int settingsPanelWidth: 420
     readonly property int settingsPanelHeight: 800
+    readonly property int groupPanelSize: Math.max(180, Math.min(280, 132 + (Math.max(groupEntries.length, 1) * 18)))
+    readonly property real groupOrbitRadius: Math.max(44, Math.min(92, groupPanelSize * 0.28))
     readonly property int preferredStageWidth: settingsOpen
                                            ? Math.max(390, settingsPanelWidth + 56)
                                            : (folderOpen ? Math.max(390, folderPanelWidth + 56) : 390)
@@ -128,6 +145,9 @@ Item {
     }
 
     function slotForIndex(itemIndex) {
+        if (groupEditMode) {
+            return itemIndex
+        }
         if (draggedIndex < 0 || hoverIndex < 0 || itemIndex === draggedIndex) {
             return itemIndex
         }
@@ -157,6 +177,104 @@ Item {
         return slot
     }
 
+    function parseChildrenJson(rawValue) {
+        if (!rawValue) {
+            return []
+        }
+        try {
+            var parsed = JSON.parse(String(rawValue))
+            return Array.isArray(parsed) ? parsed : []
+        } catch (error) {
+            return []
+        }
+    }
+
+    function cloneEntry(entry) {
+        if (!entry) {
+            return {
+                "label": "Item",
+                "color": colorPalette[0],
+                "path": "",
+                "kind": "file",
+                "children": []
+            }
+        }
+        var children = []
+        if (Array.isArray(entry.children)) {
+            for (var i = 0; i < entry.children.length; i++) {
+                children.push(cloneEntry(entry.children[i]))
+            }
+        }
+        return {
+            "label": entry.label || "Item",
+            "color": entry.color || colorPalette[0],
+            "path": entry.path || "",
+            "kind": entry.kind || "file",
+            "children": children
+        }
+    }
+
+    function modelEntryAt(itemIndex) {
+        if (itemIndex < 0 || itemIndex >= ringItems.count) {
+            return null
+        }
+        var entry = ringItems.get(itemIndex)
+        return {
+            "label": entry.label || "Item",
+            "color": entry.color || colorPalette[itemIndex % colorPalette.length],
+            "path": entry.path || "",
+            "kind": entry.kind || "file",
+            "children": parseChildrenJson(entry.childrenJson)
+        }
+    }
+
+    function flattenGroupChildren(entry) {
+        if (!entry) {
+            return []
+        }
+        if (entry.kind === "group") {
+            return Array.isArray(entry.children) ? entry.children : []
+        }
+        return [cloneEntry(entry)]
+    }
+
+    function findMergeTarget(itemIndex, px, py) {
+        var bestIndex = -1
+        var bestDistance = 999999
+        for (var i = 0; i < ringItems.count; i++) {
+            if (i === itemIndex) {
+                continue
+            }
+            var pos = slotPosition(i)
+            var dx = px - pos.x
+            var dy = py - pos.y
+            var distance = Math.sqrt((dx * dx) + (dy * dy))
+            if (distance < 42 && distance < bestDistance) {
+                bestDistance = distance
+                bestIndex = i
+            }
+        }
+        return bestIndex
+    }
+
+    function groupPanelCenterX() {
+        return groupAnchorX
+    }
+
+    function groupPanelCenterY() {
+        return groupAnchorY
+    }
+
+    function groupSlotPosition(slotIndex, total) {
+        var count = Math.max(total, 1)
+        var angle = angleForSlot(slotIndex, count) - Math.PI / 2
+        var localCenter = groupPanelSize / 2
+        return {
+            x: localCenter + Math.cos(angle) * groupOrbitRadius,
+            y: localCenter + Math.sin(angle) * groupOrbitRadius
+        }
+    }
+
     function isRemoveCandidateAt(px, py) {
         var dx = px - centerX
         var dy = py - centerY
@@ -170,12 +288,19 @@ Item {
     function startDrag(itemIndex) {
         draggedIndex = itemIndex
         hoverIndex = itemIndex
+        mergeTargetIndex = -1
         dragDistance = 0.0
         removingIndex = -1
     }
 
     function updateDrag(itemIndex, px, py) {
         if (draggedIndex !== itemIndex) {
+            return
+        }
+        if (groupEditMode) {
+            dragDistance = 0.0
+            hoverIndex = itemIndex
+            mergeTargetIndex = findMergeTarget(itemIndex, px, py)
             return
         }
         var dx = px - centerX
@@ -201,6 +326,14 @@ Item {
             return
         }
 
+        if (groupEditMode) {
+            if (mergeTargetIndex >= 0 && mergeTargetIndex !== itemIndex) {
+                mergeItems(itemIndex, mergeTargetIndex)
+            }
+            resetDragState()
+            return
+        }
+
         if (isRemoveCandidateAt(px, py)) {
             removingIndex = itemIndex
             removeIndexPending = itemIndex
@@ -219,13 +352,60 @@ Item {
     function resetDragState() {
         draggedIndex = -1
         hoverIndex = -1
+        mergeTargetIndex = -1
         dragDistance = 0.0
         removingIndex = -1
         removeIndexPending = -1
     }
 
+    function openFolderPath(folderPath, titleText, fromGroup) {
+        if (!folderPath || typeof appModel === "undefined" || !appModel) {
+            return
+        }
+        settingsOpen = false
+        if (fromGroup) {
+            folderReturnToGroup = true
+            folderReturnGroupTitle = groupTitle
+            folderReturnGroupEntries = groupEntries
+            folderReturnGroupAnchorX = groupAnchorX
+            folderReturnGroupAnchorY = groupAnchorY
+            groupOpen = false
+        } else {
+            folderReturnToGroup = false
+            folderReturnGroupTitle = ""
+            folderReturnGroupEntries = []
+        }
+        currentFolderPath = folderPath
+        folderTitle = titleText || folderPath
+        folderEntries = []
+        folderOpen = true
+        if (!appModel.automaticFolderRefresh && appModel.listFolderEntries) {
+            folderEntries = appModel.listFolderEntries(folderPath, false)
+            folderLoading = false
+        } else if (appModel.requestFolderEntries) {
+            folderLoading = true
+            appModel.requestFolderEntries(folderPath, true)
+        } else if (appModel.listFolderEntries) {
+            folderEntries = appModel.listFolderEntries(folderPath, true)
+            folderLoading = false
+        }
+    }
+
     function closeFolderView() {
         if (!folderOpen) {
+            return
+        }
+        if (folderReturnToGroup) {
+            var returnTitle = folderReturnGroupTitle
+            var returnEntries = folderReturnGroupEntries
+            var returnAnchorX = folderReturnGroupAnchorX
+            var returnAnchorY = folderReturnGroupAnchorY
+            applyFolderClosed()
+            groupTitle = returnTitle
+            groupEntries = returnEntries
+            groupAnchorX = returnAnchorX
+            groupAnchorY = returnAnchorY
+            groupOpen = true
             return
         }
         folderBackRequested()
@@ -239,11 +419,128 @@ Item {
     }
 
     function toggleSettingsView() {
+        if (groupEditMode) {
+            groupEditMode = false
+            return
+        }
         if (settingsOpen) {
             closeSettingsView()
             return
         }
+        groupOpen = false
         settingsOpen = true
+    }
+
+    function closeGroupView() {
+        if (!groupOpen) {
+            return
+        }
+        groupOpen = false
+        groupTitle = ""
+        groupEntries = []
+    }
+
+    function toggleGroupEditMode() {
+        groupEditMode = !groupEditMode
+        if (groupEditMode) {
+            settingsOpen = false
+            closeGroupView()
+        }
+        groupNamingVisible = false
+        renameTargetIndex = -1
+    }
+
+    function promptGroupName(targetIndex, suggestedName) {
+        renameTargetIndex = targetIndex
+        groupNameDraft = suggestedName || "New Group"
+        groupNamingVisible = true
+        groupNameField.forceActiveFocus()
+        groupNameField.selectAll()
+    }
+
+    function commitGroupName() {
+        if (!groupNamingVisible || renameTargetIndex < 0 || renameTargetIndex >= ringItems.count) {
+            groupNamingVisible = false
+            return
+        }
+        var trimmed = String(groupNameDraft || "").trim()
+        if (!trimmed) {
+            trimmed = "New Group"
+        }
+        ringItems.setProperty(renameTargetIndex, "label", trimmed)
+        groupNamingVisible = false
+        renameTargetIndex = -1
+        schedulePersist()
+    }
+
+    function cancelGroupNaming() {
+        groupNamingVisible = false
+        renameTargetIndex = -1
+    }
+
+    function openGroupAtIndex(itemIndex) {
+        var entry = modelEntryAt(itemIndex)
+        if (!entry || entry.kind !== "group") {
+            return
+        }
+        var pos = slotPosition(itemIndex)
+        groupAnchorX = pos.x
+        groupAnchorY = pos.y
+        groupTitle = entry.label || "Group"
+        groupEntries = entry.children || []
+        groupOpen = true
+    }
+
+    function mergeItems(sourceIndex, targetIndex) {
+        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+            return
+        }
+        if (sourceIndex >= ringItems.count || targetIndex >= ringItems.count) {
+            return
+        }
+
+        var sourceEntry = modelEntryAt(sourceIndex)
+        var targetEntry = modelEntryAt(targetIndex)
+        if (!sourceEntry || !targetEntry) {
+            return
+        }
+
+        var targetChildren = flattenGroupChildren(targetEntry)
+        var sourceChildren = flattenGroupChildren(sourceEntry)
+        var mergedChildren = []
+        for (var i = 0; i < targetChildren.length; i++) {
+            mergedChildren.push(cloneEntry(targetChildren[i]))
+        }
+        for (var j = 0; j < sourceChildren.length; j++) {
+            mergedChildren.push(cloneEntry(sourceChildren[j]))
+        }
+
+        var defaultLabel = (targetEntry.kind === "group" && targetEntry.label)
+                         ? targetEntry.label
+                         : ((sourceEntry.kind === "group" && sourceEntry.label)
+                            ? sourceEntry.label
+                            : "New Group")
+        var mergedGroup = {
+            "label": defaultLabel,
+            "color": targetEntry.color || sourceEntry.color || colorPalette[0],
+            "path": "",
+            "kind": "group",
+            "childrenJson": JSON.stringify(mergedChildren)
+        }
+
+        ringItems.set(targetIndex, mergedGroup)
+        var removalIndex = sourceIndex
+        if (sourceIndex < targetIndex) {
+            removalIndex = sourceIndex
+            targetIndex -= 1
+        }
+        ringItems.remove(removalIndex, 1)
+
+        var createdFreshGroup = (sourceEntry.kind !== "group" && targetEntry.kind !== "group")
+        schedulePersist()
+        if (createdFreshGroup) {
+            promptGroupName(targetIndex, defaultLabel)
+        }
     }
 
     function applyFolderClosed() {
@@ -252,6 +549,11 @@ Item {
         currentFolderPath = ""
         folderTitle = ""
         folderEntries = []
+        folderReturnToGroup = false
+        folderReturnGroupTitle = ""
+        folderReturnGroupEntries = []
+        folderReturnGroupAnchorX = centerX
+        folderReturnGroupAnchorY = centerY
     }
 
     function applySettingsClosed() {
@@ -259,6 +561,17 @@ Item {
     }
 
     function resetToMainView() {
+        groupEditMode = false
+        groupOpen = false
+        groupTitle = ""
+        groupEntries = []
+        groupNamingVisible = false
+        renameTargetIndex = -1
+        folderReturnToGroup = false
+        folderReturnGroupTitle = ""
+        folderReturnGroupEntries = []
+        folderReturnGroupAnchorX = centerX
+        folderReturnGroupAnchorY = centerY
         settingsOpen = false
         folderOpen = false
         folderLoading = false
@@ -283,31 +596,48 @@ Item {
         }
         var entry = ringItems.get(itemIndex)
         if (!entry.path) {
+            if (entry.kind === "group") {
+                if (groupEditMode) {
+                    promptGroupName(itemIndex, entry.label || "Group")
+                } else {
+                    openGroupAtIndex(itemIndex)
+                }
+            }
+            return
+        }
+        if (groupEditMode) {
             return
         }
         if (entry.kind === "folder") {
-            if (typeof appModel === "undefined" || !appModel) {
-                return
-            }
-            settingsOpen = false
-            currentFolderPath = entry.path
-            folderTitle = entry.label || entry.path
-            folderEntries = []
-            folderOpen = true
-            if (!appModel.automaticFolderRefresh && appModel.listFolderEntries) {
-                folderEntries = appModel.listFolderEntries(entry.path, false)
-                folderLoading = false
-            } else if (appModel.requestFolderEntries) {
-                folderLoading = true
-                appModel.requestFolderEntries(entry.path, true)
-            } else if (appModel.listFolderEntries) {
-                folderEntries = appModel.listFolderEntries(entry.path, true)
-                folderLoading = false
-            }
+            openFolderPath(entry.path, entry.label || entry.path, false)
             return
         }
         if (typeof appModel !== "undefined" && appModel && appModel.openPath) {
             if (appModel.openPath(entry.path)) {
+                maybeCloseAfterLaunch()
+            }
+        }
+    }
+
+    function activateGroupEntry(groupIndex) {
+        if (groupIndex < 0 || groupIndex >= groupEntries.length) {
+            return
+        }
+        var entry = groupEntries[groupIndex]
+        if (!entry) {
+            return
+        }
+        if (entry.kind === "group") {
+            groupTitle = entry.label || "Group"
+            groupEntries = Array.isArray(entry.children) ? entry.children : []
+            return
+        }
+        if (entry.kind === "folder") {
+            openFolderPath(entry.path || "", entry.label || entry.path || "Folder", true)
+            return
+        }
+        if (typeof appModel !== "undefined" && appModel && appModel.openPath) {
+            if (appModel.openPath(entry.path || "")) {
                 maybeCloseAfterLaunch()
             }
         }
@@ -347,7 +677,7 @@ Item {
             return appModel.pathKind(localPath)
         }
         var lowerPath = localPath.toLowerCase()
-        if (lowerPath.endsWith(".lnk")) {
+        if (lowerPath.endsWith(".lnk") || lowerPath.endsWith(".url")) {
             return "shortcut"
         }
         var slashNormalized = localPath.replace(/\\/g, "/")
@@ -393,7 +723,8 @@ Item {
                 "label": label,
                 "color": colorForPath(localPath),
                 "path": localPath,
-                "kind": kindFromPath(localPath)
+                "kind": kindFromPath(localPath),
+                "childrenJson": "[]"
             })
             appendedCount += 1
         }
@@ -410,7 +741,8 @@ Item {
                 "label": entry.label || "Item",
                 "color": entry.color || colorPalette[i % colorPalette.length],
                 "path": entry.path || "",
-                "kind": entry.kind || "file"
+                "kind": entry.kind || "file",
+                "children": parseChildrenJson(entry.childrenJson)
             })
         }
         return serialized
@@ -427,6 +759,9 @@ Item {
     }
 
     function loadFromSettings() {
+        closeGroupView()
+        groupNamingVisible = false
+        renameTargetIndex = -1
         ringItems.clear()
 
         if (typeof appModel !== "undefined" && appModel && appModel.ringItems && appModel.ringItems.length > 0) {
@@ -436,7 +771,8 @@ Item {
                     "label": item.label || "Item",
                     "color": item.color || colorPalette[i % colorPalette.length],
                     "path": item.path || "",
-                    "kind": item.kind || "file"
+                    "kind": item.kind || "file",
+                    "childrenJson": JSON.stringify(item.children || [])
                 })
             }
         }
@@ -540,14 +876,20 @@ Item {
             required property color color
             required property string path
             required property string kind
+            required property string childrenJson
+            readonly property color entryColor: color
             readonly property int total: iconRepeater.count
             readonly property int targetSlot: ring.slotForIndex(index)
             readonly property var targetPos: ring.slotPosition(targetSlot)
-            readonly property bool imagePreview: ring.pathLooksLikeImage(path, kind)
+            readonly property bool isGroup: kind === "group"
+            readonly property bool imagePreview: !isGroup && ring.pathLooksLikeImage(path, kind)
             readonly property int previewRevision: (typeof appModel !== "undefined" && appModel)
                                                    ? appModel.previewVersion
                                                    : 0
             readonly property string resolvedSource: {
+                if (isGroup) {
+                    return ""
+                }
                 var _ = previewRevision
                 if (typeof appModel !== "undefined" && appModel && appModel.iconDataUrl) {
                     return appModel.iconDataUrl(path || "", kind || "file", label || "Item")
@@ -641,7 +983,48 @@ Item {
                 }
 
                 Column {
-                    visible: !imagePreview
+                    visible: isGroup
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 4
+
+                    Item {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 34
+                        height: 24
+
+                        Repeater {
+                            model: Math.min(3, ring.parseChildrenJson(childrenJson).length)
+                            delegate: Rectangle {
+                                width: 14
+                                height: 14
+                                radius: width / 2
+                                x: index * 9
+                                y: (index % 2) * 5
+                                color: Qt.lighter(entryColor, 1.2 + (index * 0.08))
+                                border.color: "#CFF4FF"
+                                border.width: 1
+                            }
+                        }
+                    }
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: parent.width
+                        text: label
+                        color: "#F1F8FF"
+                        font.pixelSize: 9
+                        font.bold: true
+                        font.underline: ring.groupEditMode
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 2
+                        elide: Text.ElideRight
+                    }
+                }
+
+                Column {
+                    visible: !imagePreview && !isGroup
                     anchors.fill: parent
                     anchors.margins: 6
                     spacing: 2
@@ -673,7 +1056,9 @@ Item {
                     radius: width / 2
                     color: "transparent"
                     border.color: color
-                    border.width: ring.hoverIndex === index && ring.draggedIndex >= 0 ? 2 : 1
+                    border.width: ring.mergeTargetIndex === index
+                                  ? 3
+                                  : (ring.hoverIndex === index && ring.draggedIndex >= 0 ? 2 : 1)
 
                     Behavior on border.color {
                         ColorAnimation { duration: ring.animDuration(110) }
@@ -684,7 +1069,7 @@ Item {
             MouseArea {
                 id: dragArea
                 anchors.fill: parent
-                enabled: ring.removingIndex < 0 && !ring.subViewOpen
+                enabled: ring.removingIndex < 0 && !ring.subViewOpen && !ring.groupOpen && !ring.groupNamingVisible
                 hoverEnabled: true
                 preventStealing: true
                 acceptedButtons: Qt.LeftButton
@@ -729,7 +1114,9 @@ Item {
                     dragCenterX = targetPos.x
                     dragCenterY = targetPos.y
                     if (wasClick) {
-                        ring.activateItem(index)
+                        if (!ring.groupEditMode || kind === "group") {
+                            ring.activateItem(index)
+                        }
                     }
                 }
 
@@ -753,10 +1140,10 @@ Item {
         height: 124
         radius: width / 2
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#DD1A2938" }
-            GradientStop { position: 1.0; color: "#B0121C28" }
+            GradientStop { position: 0.0; color: ring.groupEditMode ? "#E63A2020" : "#DD1A2938" }
+            GradientStop { position: 1.0; color: ring.groupEditMode ? "#C0281818" : "#B0121C28" }
         }
-        border.color: "#8BE0F4FF"
+        border.color: ring.groupEditMode ? "#FF9B9B" : "#8BE0F4FF"
         border.width: 1
         scale: 0.9 + (0.1 * ring.openProgress)
         opacity: 0.8 + (0.2 * ring.openProgress)
@@ -772,7 +1159,9 @@ Item {
             anchors.centerIn: parent
             text: ring.removeCandidate
                   ? "Release to\nRemove"
-                  : (ring.settingsOpen ? "Settings" : (ring.folderOpen ? "Folder View" : "Radial Dock"))
+                  : (ring.groupEditMode
+                     ? "Group Edit\nMode"
+                     : (ring.settingsOpen ? "Settings" : (ring.folderOpen ? "Folder View" : "Radial Dock")))
             color: "#E8F8FF"
             font.pixelSize: ring.removeCandidate ? 14 : 16
             font.bold: true
@@ -783,10 +1172,12 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 12
-            text: "Click for settings"
+            text: ring.groupEditMode
+                  ? "Click to exit"
+                  : "Click settings / hold to group"
             color: "#98B5C6"
             font.pixelSize: 9
-            opacity: centerHover.hovered && !ring.folderOpen ? 1.0 : 0.0
+            opacity: centerHover.hovered && !ring.folderOpen && !ring.groupOpen ? 1.0 : 0.0
 
             Behavior on opacity {
                 NumberAnimation { duration: ring.animDuration(80); easing.type: Easing.OutCubic }
@@ -798,10 +1189,36 @@ Item {
         }
 
         MouseArea {
+            id: coreClickArea
             anchors.fill: parent
-            enabled: !ring.folderOpen && ring.draggedIndex < 0
+            enabled: !ring.folderOpen && !ring.groupOpen && !ring.groupNamingVisible && ring.draggedIndex < 0
             acceptedButtons: Qt.LeftButton
-            onClicked: ring.toggleSettingsView()
+            onPressed: holdToEditTimer.restart()
+            onReleased: holdToEditTimer.stop()
+            onCanceled: holdToEditTimer.stop()
+            onClicked: {
+                if (holdToEditTimer.triggeredEdit) {
+                    holdToEditTimer.triggeredEdit = false
+                    return
+                }
+                ring.toggleSettingsView()
+            }
+        }
+
+        Timer {
+            id: holdToEditTimer
+            property bool triggeredEdit: false
+            interval: 1000
+            repeat: false
+            onRunningChanged: {
+                if (running) {
+                    triggeredEdit = false
+                }
+            }
+            onTriggered: {
+                triggeredEdit = true
+                ring.toggleGroupEditMode()
+            }
         }
     }
 
@@ -822,6 +1239,227 @@ Item {
 
         Behavior on opacity {
             NumberAnimation { duration: ring.animDuration(130); easing.type: Easing.OutCubic }
+        }
+    }
+
+    Item {
+        id: groupOverlay
+        width: ring.groupPanelSize
+        height: ring.groupPanelSize
+        x: ring.groupPanelCenterX() - (width / 2)
+        y: ring.groupPanelCenterY() - (height / 2)
+        visible: ring.groupOpen
+        opacity: ring.groupOpen ? 1.0 : 0.0
+        z: 290
+
+        Behavior on opacity {
+            NumberAnimation { duration: ring.animDuration(120); easing.type: Easing.OutCubic }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: "#EF101820"
+            border.color: "#94D3E5F8"
+            border.width: 1
+        }
+
+        Text {
+            anchors.centerIn: parent
+            text: ring.groupTitle
+            color: "#F2FAFF"
+            font.pixelSize: 11
+            font.bold: true
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            width: Math.max(64, parent.width * 0.42)
+            wrapMode: Text.WordWrap
+            maximumLineCount: 2
+            elide: Text.ElideRight
+        }
+
+        Repeater {
+            model: ring.groupEntries
+            delegate: Item {
+                required property int index
+                property var entry: (ring.groupEntries && index >= 0 && index < ring.groupEntries.length)
+                                    ? ring.groupEntries[index]
+                                    : ({})
+                readonly property bool isGroup: (entry.kind || "") === "group"
+                readonly property bool imagePreview: !isGroup && ring.pathLooksLikeImage(entry.path || "", entry.kind || "file")
+                readonly property int previewRevision: (typeof appModel !== "undefined" && appModel)
+                                                       ? appModel.previewVersion
+                                                       : 0
+                readonly property var pos: ring.groupSlotPosition(index, ring.groupEntries.length)
+                readonly property string resolvedSource: {
+                    if (isGroup) {
+                        return ""
+                    }
+                    var _ = previewRevision
+                    if (typeof appModel !== "undefined" && appModel && appModel.iconDataUrl) {
+                        return appModel.iconDataUrl(entry.path || "", entry.kind || "file", entry.label || "Item")
+                    }
+                    return ""
+                }
+
+                width: 52
+                height: 52
+                x: pos.x - (width / 2)
+                y: pos.y - (height / 2)
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: width / 2
+                    color: "#E217202B"
+                    border.color: "#77D4E8F4"
+                    border.width: 1
+
+                    Image {
+                        anchors.fill: parent
+                        visible: imagePreview
+                        fillMode: Image.PreserveAspectCrop
+                        smooth: true
+                        asynchronous: true
+                        source: resolvedSource
+                    }
+
+                    Column {
+                        visible: !imagePreview
+                        anchors.fill: parent
+                        anchors.margins: 6
+                        spacing: 1
+
+                        Rectangle {
+                            visible: isGroup
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: 24
+                            height: 16
+                            radius: 8
+                            color: "#5079A0C0"
+                            border.color: "#CFEFFF"
+                            border.width: 1
+                        }
+
+                        Image {
+                            visible: !isGroup
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: 20
+                            height: 20
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            source: resolvedSource
+                        }
+
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            text: entry.label || "Item"
+                            color: "#EAF4FF"
+                            font.pixelSize: 8
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.Wrap
+                            maximumLineCount: 2
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton
+                    onClicked: ring.activateGroupEntry(index)
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        anchors.centerIn: parent
+        width: 280
+        height: 142
+        radius: 12
+        visible: ring.groupNamingVisible
+        opacity: ring.groupNamingVisible ? 1.0 : 0.0
+        z: 340
+        color: "#F418212B"
+        border.color: "#89D3E5F8"
+        border.width: 1
+
+        Behavior on opacity {
+            NumberAnimation { duration: ring.animDuration(100); easing.type: Easing.OutCubic }
+        }
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 14
+            spacing: 10
+
+            Text {
+                text: "Name This Group"
+                color: "#F2FAFF"
+                font.pixelSize: 14
+                font.bold: true
+            }
+
+            TextField {
+                id: groupNameField
+                text: ring.groupNameDraft
+                selectByMouse: true
+                onTextChanged: ring.groupNameDraft = text
+                onAccepted: ring.commitGroupName()
+            }
+
+            Row {
+                spacing: 8
+
+                Rectangle {
+                    width: 84
+                    height: 28
+                    radius: 6
+                    color: saveGroupNameMouse.pressed ? "#2A3946" : (saveGroupNameMouse.containsMouse ? "#324555" : "#273643")
+                    border.color: saveGroupNameMouse.containsMouse ? "#6B90AA" : "#4A6478"
+                    border.width: 1
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Save"
+                        color: "#EAF4FF"
+                        font.pixelSize: 11
+                    }
+
+                    MouseArea {
+                        id: saveGroupNameMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton
+                        onClicked: ring.commitGroupName()
+                    }
+                }
+
+                Rectangle {
+                    width: 84
+                    height: 28
+                    radius: 6
+                    color: cancelGroupNameMouse.pressed ? "#2A3946" : (cancelGroupNameMouse.containsMouse ? "#324555" : "#273643")
+                    border.color: cancelGroupNameMouse.containsMouse ? "#6B90AA" : "#4A6478"
+                    border.width: 1
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Cancel"
+                        color: "#EAF4FF"
+                        font.pixelSize: 11
+                    }
+
+                    MouseArea {
+                        id: cancelGroupNameMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton
+                        onClicked: ring.cancelGroupNaming()
+                    }
+                }
+            }
         }
     }
 

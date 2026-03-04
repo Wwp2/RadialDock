@@ -106,6 +106,7 @@ class DockItem:
     label: str
     kind: str
     color: str = "#62B9FF"
+    children: list["DockItem"] = field(default_factory=list)
 
 
 def default_ring_items() -> list[DockItem]:
@@ -219,16 +220,9 @@ class AppModel(QObject):
         try:
             raw = json.loads(self.paths.config_file.read_text(encoding="utf-8"))
             items = [
-                DockItem(
-                    path=item.get("path", ""),
-                    label=item.get("label", ""),
-                    kind=item.get("kind", "file"),
-                    color=item.get(
-                        "color",
-                        self._color_for_item(item.get("path", ""), item.get("label", ""), index),
-                    ),
-                )
+                self._dock_item_from_raw(item, index)
                 for index, item in enumerate(raw.get("items", []))
+                if isinstance(item, dict)
             ]
             return Settings(
                 hotkey=raw.get("hotkey", "Ctrl+Space"),
@@ -337,6 +331,43 @@ class AppModel(QObject):
         value = sum(ord(char) for char in seed)
         return DEFAULT_ITEM_COLORS[value % len(DEFAULT_ITEM_COLORS)]
 
+    def _dock_item_from_raw(self, raw_item: dict[str, object], index: int) -> DockItem:
+        path = str(raw_item.get("path", ""))
+        label = str(raw_item.get("label", ""))
+        kind = str(raw_item.get("kind", "file") or "file")
+        color = str(raw_item.get("color", "")).strip()
+        if not label:
+            label = Path(path).name if path else "Item"
+        if not color:
+            color = self._color_for_item(path, label, index)
+
+        raw_children = raw_item.get("children", [])
+        children: list[DockItem] = []
+        if isinstance(raw_children, list):
+            for child_index, raw_child in enumerate(raw_children):
+                if not isinstance(raw_child, dict):
+                    continue
+                children.append(self._dock_item_from_raw(raw_child, child_index))
+
+        return DockItem(
+            path=path,
+            label=label,
+            kind=kind,
+            color=color,
+            children=children,
+        )
+
+    def _serialize_dock_item(self, item: DockItem) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "path": item.path,
+            "label": item.label,
+            "kind": item.kind,
+            "color": item.color,
+        }
+        if item.children:
+            payload["children"] = [self._serialize_dock_item(child) for child in item.children]
+        return payload
+
     def _kind_for_path(self, candidate: Path) -> str:
         if candidate.is_dir():
             return "folder"
@@ -421,8 +452,8 @@ class AppModel(QObject):
         self._save_settings(self.settings)
         self.folderCompactThresholdChanged.emit()
 
-    def get_ring_items(self) -> list[dict[str, str]]:
-        return [asdict(item) for item in self.settings.items]
+    def get_ring_items(self) -> list[dict[str, object]]:
+        return [self._serialize_dock_item(item) for item in self.settings.items]
 
     @Slot("QVariantList")
     def saveRingItems(self, items: list[object]) -> None:
@@ -430,15 +461,7 @@ class AppModel(QObject):
         for index, raw_item in enumerate(items):
             if not isinstance(raw_item, dict):
                 continue
-            path = str(raw_item.get("path", ""))
-            label = str(raw_item.get("label", ""))
-            kind = str(raw_item.get("kind", "file") or "file")
-            color = str(raw_item.get("color", "")).strip()
-            if not label:
-                label = Path(path).name if path else "Item"
-            if not color:
-                color = self._color_for_item(path, label, index)
-            parsed_items.append(DockItem(path=path, label=label, kind=kind, color=color))
+            parsed_items.append(self._dock_item_from_raw(raw_item, index))
 
         self.settings.items = parsed_items
         self._save_settings(self.settings)
@@ -809,19 +832,9 @@ class AppModel(QObject):
         if not force and not self.settings.automatic_icon_refresh:
             return False
 
-        original_count = len(self.settings.items)
-        self.settings.items = [
-            item
-            for item in self.settings.items
-            if not item.path or self._path_exists(item.path)
-        ]
-        changed = len(self.settings.items) != original_count
+        self.settings.items, changed = self._refresh_item_tree(self.settings.items)
         if changed:
-            valid_folder_paths = {
-                item.path
-                for item in self.settings.items
-                if item.kind == "folder" and item.path
-            }
+            valid_folder_paths = self._collect_folder_paths(self.settings.items)
             self.settings.folder_cache = {
                 path: entries
                 for path, entries in self.settings.folder_cache.items()
@@ -830,10 +843,16 @@ class AppModel(QObject):
         return changed
 
     def _clone_items(self) -> list[DockItem]:
-        return [
-            DockItem(path=item.path, label=item.label, kind=item.kind, color=item.color)
-            for item in self.settings.items
-        ]
+        return [self._clone_dock_item(item) for item in self.settings.items]
+
+    def _clone_dock_item(self, item: DockItem) -> DockItem:
+        return DockItem(
+            path=item.path,
+            label=item.label,
+            kind=item.kind,
+            color=item.color,
+            children=[self._clone_dock_item(child) for child in item.children],
+        )
 
     def _clone_folder_cache(self) -> dict[str, list[dict[str, str]]]:
         return {
@@ -850,25 +869,61 @@ class AppModel(QObject):
         if not enabled:
             return items, folder_cache, False
 
-        next_items = [
-            item
-            for item in items
-            if not item.path or self._path_exists(item.path)
-        ]
-        changed = len(next_items) != len(items)
+        next_items, changed = self._refresh_item_tree(items)
         next_cache = folder_cache
         if changed:
-            valid_folder_paths = {
-                item.path
-                for item in next_items
-                if item.kind == "folder" and item.path
-            }
+            valid_folder_paths = self._collect_folder_paths(next_items)
             next_cache = {
                 path: entries
                 for path, entries in folder_cache.items()
                 if path in valid_folder_paths
             }
         return next_items, next_cache, changed
+
+    def _refresh_item_tree(self, items: list[DockItem]) -> tuple[list[DockItem], bool]:
+        next_items: list[DockItem] = []
+        changed = False
+
+        for item in items:
+            normalized_items, item_changed = self._refresh_single_item(item)
+            if item_changed:
+                changed = True
+            next_items.extend(normalized_items)
+
+        if not changed and len(next_items) != len(items):
+            changed = True
+        return next_items, changed
+
+    def _refresh_single_item(self, item: DockItem) -> tuple[list[DockItem], bool]:
+        if item.kind == "group":
+            next_children, child_changed = self._refresh_item_tree(item.children)
+            if not next_children:
+                return [], True
+            if len(next_children) == 1:
+                return [next_children[0]], True
+
+            group_changed = child_changed or len(next_children) != len(item.children)
+            normalized_group = DockItem(
+                path="",
+                label=item.label or "Group",
+                kind="group",
+                color=item.color,
+                children=next_children,
+            )
+            return [normalized_group], group_changed
+
+        if item.path and not self._path_exists(item.path):
+            return [], True
+        return [self._clone_dock_item(item)], False
+
+    def _collect_folder_paths(self, items: list[DockItem]) -> set[str]:
+        folder_paths: set[str] = set()
+        for item in items:
+            if item.kind == "folder" and item.path:
+                folder_paths.add(item.path)
+            if item.children:
+                folder_paths.update(self._collect_folder_paths(item.children))
+        return folder_paths
 
     def _build_folder_entries(self, folder: Path, refresh_on_open: bool) -> list[dict[str, str]]:
         entries: list[dict[str, str]] = []
@@ -895,20 +950,18 @@ class AppModel(QObject):
 
         changed = False
         next_cache: dict[str, list[dict[str, str]]] = {}
-        for item in self.settings.items:
-            if item.kind != "folder" or not item.path:
-                continue
-            folder = Path(item.path)
+        for folder_path in sorted(self._collect_folder_paths(self.settings.items)):
+            folder = Path(folder_path)
             if not folder.exists() or not folder.is_dir():
                 continue
             try:
                 entries = self._build_folder_entries(folder, refresh_on_open=True)
             except OSError:
                 continue
-            cached_entries = self.settings.folder_cache.get(item.path, [])
+            cached_entries = self.settings.folder_cache.get(folder_path, [])
             if cached_entries != entries:
                 changed = True
-            next_cache[item.path] = entries
+            next_cache[folder_path] = entries
 
         if self.settings.folder_cache != next_cache:
             self.settings.folder_cache = next_cache
@@ -926,20 +979,18 @@ class AppModel(QObject):
 
         changed = False
         next_cache: dict[str, list[dict[str, str]]] = {}
-        for item in items:
-            if item.kind != "folder" or not item.path:
-                continue
-            folder = Path(item.path)
+        for folder_path in sorted(self._collect_folder_paths(items)):
+            folder = Path(folder_path)
             if not folder.exists() or not folder.is_dir():
                 continue
             try:
                 entries = self._build_folder_entries(folder, refresh_on_open=True)
             except OSError:
                 continue
-            cached_entries = folder_cache.get(item.path, [])
+            cached_entries = folder_cache.get(folder_path, [])
             if cached_entries != entries:
                 changed = True
-            next_cache[item.path] = entries
+            next_cache[folder_path] = entries
 
         if next_cache != folder_cache:
             changed = True
@@ -1017,11 +1068,20 @@ class AppModel(QObject):
     def warmStartupCaches(self) -> None:
         # Warm icon provider and in-memory icon cache while the app is hidden,
         # so the first hotkey open does less work on the visible path.
-        for item in self.settings.items[:24]:
+        for item in self._flatten_items(self.settings.items)[:24]:
             try:
                 self.iconDataUrl(item.path, item.kind, item.label)
             except Exception:
                 continue
+
+    def _flatten_items(self, items: list[DockItem]) -> list[DockItem]:
+        flattened: list[DockItem] = []
+        for item in items:
+            if item.kind == "group":
+                flattened.extend(self._flatten_items(item.children))
+            else:
+                flattened.append(item)
+        return flattened
 
     @Slot(str, result=bool)
     def openPath(self, path: str) -> bool:

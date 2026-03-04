@@ -62,6 +62,14 @@ Window {
             startupMessageVisible = false
             return
         }
+        if (ringWidget && ringWidget.groupNamingVisible) {
+            ringWidget.cancelGroupNaming()
+            return
+        }
+        if (ringWidget && ringWidget.groupOpen) {
+            ringWidget.closeGroupView()
+            return
+        }
         if (ringWidget && ringWidget.settingsOpen) {
             ringWidget.closeSettingsView()
             return

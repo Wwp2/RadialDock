@@ -147,6 +147,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Radial Dock Launcher")
     parser.add_argument("--install", action="store_true", help="Install the app")
     parser.add_argument("--uninstall", action="store_true", help="Uninstall the app")
+    parser.add_argument(
+        "--silent",
+        action="store_true",
+        help="Use silent install/uninstall defaults with no installer prompts",
+    )
     parser.add_argument("--portable", action="store_true", help="Run in portable mode")
     parser.add_argument(
         "--shortcut-launch",
@@ -178,9 +183,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(launch_args)
 
     if args.install:
-        return install.install_self(launch_args)
+        return install.install_self(launch_args, silent=args.silent)
     if args.uninstall:
-        return install.uninstall_self()
+        return install.uninstall_self(silent=args.silent)
     if not args.portable and install.should_offer_manage_prompt():
         if install.is_installed():
             if install.offer_uninstall_prompt():

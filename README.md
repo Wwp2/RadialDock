@@ -5,7 +5,7 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 ## MVP Status
 
 - Original step-based MVP plan is complete.
-- Current documented version: `0.9.5`
+- Current documented version: `0.10.6`
 - Ongoing development is now tracked by versioned fixes/features instead of the original step plan.
 
 - Step 1 complete: repo scaffold, `.venv`, dependencies, hello overlay QML window.
@@ -53,9 +53,14 @@ python -m radialdock.app
 
 Interaction notes:
 - `Right click` works as a universal back action:
+  - closes the group rename prompt if open
+  - closes an open icon group if open
   - closes folder sub-view if open
   - otherwise closes the radial overlay
 - Click the center core to open the settings panel.
+- Hold the center core for 2 seconds to toggle `Group Edit Mode`.
+- In `Group Edit Mode`, drag one ring item onto another to merge them into a named group.
+- In normal mode, clicking a group opens a smaller radial sub-ring on top of the main dock.
 - Settings now include `Restart App` and `Quit App` controls for full process control.
 - Settings include a `Close after launch` toggle to optionally dismiss the menu after opening real items.
 - Settings include a capture-based shortcut picker at the top for keyboard or mouse-button launch shortcuts.
@@ -92,12 +97,16 @@ python -m radialdock.app
 - `python -m radialdock.app --portable`
 - `python -m radialdock.app --install`
 - `python -m radialdock.app --uninstall`
+- `python -m radialdock.app --install --silent`
+- `python -m radialdock.app --uninstall --silent`
 
 Install/uninstall now supports:
 - Windows message-box driven install choices in the packaged EXE
 - Start Menu and desktop shortcuts
+- an `Open after install` choice during install
 - startup shortcut management
 - closing a running installed `RadialDock.exe` automatically before uninstall
+- a `--silent` mode that answers yes to all install questions and suppresses installer dialogs
 
 When running from source (`python -m radialdock.app`), install features are still available for development, but the true copy-to-`%LocalAppData%` EXE flow is intended for the packaged build.
 
@@ -128,8 +137,8 @@ For a one-command rebuild using the current version in `VERSION.txt`, followed b
 This script:
 - runs `build.ps1`
 - reads the current version from `VERSION.txt`
-- runs the matching installer with `--uninstall`
-- runs the same installer again with `--install`
+- runs the matching installer with `--uninstall --silent`
+- runs the same installer again with `--install --silent`
 
 ## Project Layout
 

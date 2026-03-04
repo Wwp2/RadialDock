@@ -106,6 +106,23 @@ def _show_warning(title: str, text: str) -> None:
     _message_box(title, text, MB_OK | MB_ICONWARNING)
 
 
+def _launch_detached(launch_spec: LaunchSpec) -> bool:
+    command = subprocess.list2cmdline([launch_spec.target_path])
+    if launch_spec.arguments.strip():
+        command = f"{command} {launch_spec.arguments}"
+
+    try:
+        subprocess.Popen(
+            command,
+            cwd=launch_spec.working_dir or None,
+            creationflags=0x00000008 | 0x08000000,  # DETACHED_PROCESS | CREATE_NO_WINDOW
+            close_fds=True,
+        )
+        return True
+    except OSError:
+        return False
+
+
 def should_offer_manage_prompt() -> bool:
     if not getattr(sys, "frozen", False):
         return False
@@ -278,22 +295,32 @@ def set_startup_enabled(enabled: bool, launch_args: list[str] | None = None) -> 
     return startup_path.exists()
 
 
-def install_self(launch_args: list[str] | None = None) -> int:
+def install_self(launch_args: list[str] | None = None, silent: bool = False) -> int:
     target_dir = install_root()
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    create_start_menu = _ask_yes_no(
-        "RadialDock Install",
-        "Create a Start Menu shortcut?",
-    )
-    create_desktop = _ask_yes_no(
-        "RadialDock Install",
-        "Create a desktop shortcut?",
-    )
-    enable_startup = _ask_yes_no(
-        "RadialDock Install",
-        "Launch RadialDock automatically when Windows starts?",
-    )
+    if silent:
+        create_start_menu = True
+        create_desktop = True
+        launch_after_install = True
+        enable_startup = True
+    else:
+        create_start_menu = _ask_yes_no(
+            "RadialDock Install",
+            "Create a Start Menu shortcut?",
+        )
+        create_desktop = _ask_yes_no(
+            "RadialDock Install",
+            "Create a desktop shortcut?",
+        )
+        launch_after_install = _ask_yes_no(
+            "RadialDock Install",
+            "Open RadialDock after installation?",
+        )
+        enable_startup = _ask_yes_no(
+            "RadialDock Install",
+            "Launch RadialDock automatically when Windows starts?",
+        )
 
     if getattr(sys, "frozen", False):
         source_exe = Path(sys.executable)
@@ -332,13 +359,18 @@ def install_self(launch_args: list[str] | None = None) -> int:
         _remove_path(startup_shortcut_path())
     _save_marker(launch_spec)
 
+    if launch_after_install:
+        _launch_detached(_with_extra_arg(launch_spec, SHORTCUT_LAUNCH_ARG))
+
     summary = [
         f"Install location: {target_dir}",
         "Start Menu shortcut: " + ("Yes" if create_start_menu else "No"),
         "Desktop shortcut: " + ("Yes" if create_desktop else "No"),
+        "Open after install: " + ("Yes" if launch_after_install else "No"),
         "Start on login: " + ("Yes" if enable_startup else "No"),
     ]
-    _show_info("RadialDock Install", "\n".join(summary))
+    if not silent:
+        _show_info("RadialDock Install", "\n".join(summary))
     return 0
 
 
@@ -364,9 +396,10 @@ def _schedule_self_delete(root: Path, current_exe: Path) -> None:
     )
 
 
-def uninstall_self() -> int:
+def uninstall_self(silent: bool = False) -> int:
     if not is_installed():
-        _show_info("RadialDock Uninstall", "RadialDock is not currently installed.")
+        if not silent:
+            _show_info("RadialDock Uninstall", "RadialDock is not currently installed.")
         return 0
 
     _terminate_running_runtime()
@@ -382,10 +415,11 @@ def uninstall_self() -> int:
         try:
             if current_exe.exists() and current_exe.resolve().is_relative_to(root.resolve()):
                 _schedule_self_delete(root, current_exe)
-                _show_info(
-                    "RadialDock Uninstall",
-                    "RadialDock will finish removing itself after this process exits.",
-                )
+                if not silent:
+                    _show_info(
+                        "RadialDock Uninstall",
+                        "RadialDock will finish removing itself after this process exits.",
+                    )
                 return 0
         except AttributeError:
             # Python <3.9 fallback not needed in current environment.
@@ -395,8 +429,12 @@ def uninstall_self() -> int:
         if root.exists():
             shutil.rmtree(root)
     except OSError as exc:
-        _show_warning("RadialDock Uninstall", f"Uninstall failed: {exc}")
+        if silent:
+            print(f"RadialDock uninstall failed: {exc}", file=sys.stderr)
+        else:
+            _show_warning("RadialDock Uninstall", f"Uninstall failed: {exc}")
         return 1
 
-    _show_info("RadialDock Uninstall", "RadialDock has been removed.")
+    if not silent:
+        _show_info("RadialDock Uninstall", "RadialDock has been removed.")
     return 0

@@ -2,7 +2,7 @@
 
 ## Current Version
 
-- Current version: **0.9.5**
+- Current version: **0.10.6**
 - Versioning mode: **Version-based tracking**
 - Original step-based plan: **Complete through Step 13**
 - Next tracking style: **Journal entries by version and targeted fixes/features**
@@ -12,9 +12,51 @@
 - Original development plan: Complete
 - `docs/DEV_PLAN.md`: Archived for reference only
 - Ongoing work: Post-plan fixes, polish, and new features tracked here
-- Current documented version: `0.9.5`
+- Current documented version: `0.10.6`
 
 ## Change Log
+
+### 2026-03-04 - Change 66 (Center group title in group overlay)
+
+- Moved the open group title from the top edge of the group sub-ring into the visual center of the group overlay.
+- The group title now sits in the center hub area, matching the intended smaller radial menu layout.
+
+### 2026-03-04 - Change 65 (Silent installer mode + launch-after-install option)
+
+- Added `--silent` support to `python -m radialdock.app --install` and `--uninstall`.
+- Silent install now answers yes to all installer questions and suppresses normal install/uninstall info dialogs.
+- Added a new install-time question: `Open RadialDock after installation?`
+  - it appears after the desktop shortcut question and before the startup question
+  - in silent mode, it is always treated as yes
+- Post-install launch now uses the same shortcut-launch path, so it opens like a normal first launch.
+- Updated `rebuild_reinstall.sh` to use `--uninstall --silent` and `--install --silent` for a faster rebuild loop.
+
+### 2026-03-04 - Change 64 (Version bump to 0.10.6)
+
+- Confirmed the official documented version is now `0.10.6`.
+- Synced the journal and README to version `0.10.6`.
+
+### 2026-03-04 - Change 63 (Group UI follow-up fixes)
+
+- Fixed duplicate group labels in the main ring by preventing the normal non-group text/icon branch from rendering on grouped items.
+- Fixed group overlay positioning so the opened group sub-ring is centered directly on the clicked group icon instead of being clamped inward toward the main dock center.
+- Fixed group sub-ring icon rendering by binding the delegate directly to the live `groupEntries` array instead of relying on the prior brittle delegate data binding.
+- Fixed folder back-navigation for folders opened from inside groups:
+  - right click now returns from the folder view back into the originating group
+  - it no longer jumps straight back to the main ring in that path
+
+### 2026-03-04 - Change 62 (Icon groups + group edit mode)
+
+- Added grouped dock items as a persisted top-level item type with nested child items in `src/radialdock/model.py`.
+- Ring item refresh and folder-cache refresh now traverse grouped items as well, so grouped folders/files participate in the same refresh system as normal ring items.
+- Added a new `Group Edit Mode` in `ui/RadialRing.qml`:
+  - hold the center core for 2 seconds to toggle it on/off
+  - the center core turns red while active
+  - dragging one ring item onto another now merges them into a group instead of reordering
+- New groups can be named immediately, and existing group names can be changed by clicking the group while `Group Edit Mode` is active.
+- Clicking a group in normal mode now opens a smaller radial sub-ring on top of the main dock.
+- Group entries launch and open folders using the same behavior as normal main-ring items.
+- Updated `ui/Main.qml` back-action flow so right click closes group sub-rings and the group naming prompt before other views.
 
 ### 2026-03-04 - Change 61 (Version bump to 0.9.5 + rebuild helper)
 
