@@ -961,6 +961,7 @@ Item {
             required property string kind
             required property string childrenJson
             readonly property color entryColor: color
+            readonly property int groupPreviewCount: ring.parseChildrenJson(childrenJson).length
             readonly property int total: iconRepeater.count
             readonly property int targetSlot: ring.slotForIndex(index)
             readonly property var targetPos: ring.slotPosition(targetSlot)
@@ -1068,25 +1069,41 @@ Item {
                 Column {
                     visible: isGroup
                     anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 4
+                    anchors.margins: 8
+                    spacing: 3
 
                     Item {
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: 34
-                        height: 24
+                        height: 34
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 28
+                            height: 28
+                            radius: width / 2
+                            color: "#223240"
+                            border.color: "#8CCFE3F6"
+                            border.width: 1
+                        }
 
                         Repeater {
-                            model: Math.min(3, ring.parseChildrenJson(childrenJson).length)
-                            delegate: Rectangle {
-                                width: 14
-                                height: 14
-                                radius: width / 2
-                                x: index * 9
-                                y: (index % 2) * 5
-                                color: Qt.lighter(entryColor, 1.2 + (index * 0.08))
-                                border.color: "#CFF4FF"
-                                border.width: 1
+                            model: groupPreviewCount
+                            delegate: Item {
+                                readonly property real miniOrbit: groupPreviewCount >= 7 ? 8.5 : 7
+                                readonly property real angle: ((index / Math.max(groupPreviewCount, 1)) * Math.PI * 2) - (Math.PI / 2)
+                                readonly property real dotSize: groupPreviewCount >= 7 ? 4 : 5
+                                width: dotSize
+                                height: dotSize
+                                x: (parent.width / 2) + (Math.cos(angle) * miniOrbit) - (width / 2)
+                                y: (parent.height / 2) + (Math.sin(angle) * miniOrbit) - (height / 2)
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: width / 2
+                                    color: "#F4FAFF"
+                                    opacity: 0.9
+                                }
                             }
                         }
                     }

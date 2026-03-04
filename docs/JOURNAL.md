@@ -2,7 +2,7 @@
 
 ## Current Version
 
-- Current version: **0.10.6**
+- Current version: **0.10.9**
 - Versioning mode: **Version-based tracking**
 - Original step-based plan: **Complete through Step 13**
 - Next tracking style: **Journal entries by version and targeted fixes/features**
@@ -12,9 +12,28 @@
 - Original development plan: Complete
 - `docs/DEV_PLAN.md`: Archived for reference only
 - Ongoing work: Post-plan fixes, polish, and new features tracked here
-- Current documented version: `0.10.6`
+- Current documented version: `0.10.9`
 
 ## Change Log
+
+### 2026-03-04 - Change 71 (Group preview count + white-dot simplification)
+
+- Updated the miniature main-ring group preview so it now renders one preview dot per grouped item instead of stopping at three.
+- Removed the old center dot from the miniature group preview.
+- Simplified the preview visuals so the small group-preview dots are now minimal white dots instead of color-coded dots.
+
+### 2026-03-04 - Change 70 (Miniature group menu preview on group icons)
+
+- Replaced the old stacked indicator balls on grouped main-ring icons with a miniature circular group-preview motif.
+- Group icons in the main ring now show:
+  - a small circular mini-preview shell
+  - a few tiny dots arranged inside it to suggest the grouped contents
+- This keeps the group icon visually closer to the actual opened group sub-ring and makes the group state more readable at a glance.
+
+### 2026-03-04 - Change 69 (Version bump to 0.10.9)
+
+- Confirmed the official documented version is now `0.10.9`.
+- Synced the journal and README to version `0.10.9`.
 
 ### 2026-03-04 - Change 68 (Fix repeated drag-out duplication from groups)
 
