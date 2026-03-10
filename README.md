@@ -5,7 +5,7 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 ## MVP Status
 
 - Original step-based MVP plan is complete.
-- Current documented version: `0.10.9`
+- Current documented version: `0.10.11`
 - Ongoing development is now tracked by versioned fixes/features instead of the original step plan.
 
 - Step 1 complete: repo scaffold, `.venv`, dependencies, hello overlay QML window.
@@ -63,6 +63,7 @@ Interaction notes:
 - In normal mode, clicking a group opens a smaller radial sub-ring on top of the main dock.
 - In normal mode, you can drag an item out of an open group sub-ring and drop it onto the main dock to move it back to the top level.
 - Settings now include `Restart App` and `Quit App` controls for full process control.
+- Settings now include single-file backup controls for exporting settings only, exporting settings plus dock items, and importing a backup.
 - Settings include a `Close after launch` toggle to optionally dismiss the menu after opening real items.
 - Settings include a capture-based shortcut picker at the top for keyboard or mouse-button launch shortcuts.
 - Settings `App Control` now includes a `Launch on startup` toggle.
@@ -73,6 +74,7 @@ Interaction notes:
 - Folder views now open first and load refreshed contents after, while cached-only mode still opens immediately with no new scan.
 - Automatic refresh checks now run in the background after the UI opens, so the dock can appear before filesystem scans finish.
 - The app also does a light hidden warm-up after startup to preload current ring icon sources before the first hotkey open.
+- That hidden startup warm-up now also refreshes pinned folder caches in the background when automatic folder refresh is enabled, so the first folder open after boot is less likely to stall.
 - When the startup message is enabled, the startup help appears every time the radial dock is opened until the user turns it off.
 - On app launch, the radial menu opens centered on screen so users immediately see that it is running.
 - The startup message explains the app, the default shortcut (`Ctrl+Space`), where to change it, and how to add/remove ring items. It can be turned off.

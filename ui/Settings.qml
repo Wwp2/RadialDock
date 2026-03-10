@@ -12,6 +12,8 @@ Item {
     property string displayedHotkey: "Ctrl+Space"
     property string hotkeyStatus: ""
     property bool hotkeyError: false
+    property string transferStatus: ""
+    property bool transferError: false
 
     function clampSpeed(value) {
         return Math.max(0.1, Math.min(10.0, value))
@@ -209,6 +211,13 @@ Item {
         }
         function onLaunchOnStartupChanged() {
             settings.refreshFromModel()
+        }
+        function onSettingsTransferResult(success, message) {
+            settings.transferError = !success
+            settings.transferStatus = message
+            if (success) {
+                settings.refreshFromModel()
+            }
         }
     }
 
@@ -789,6 +798,110 @@ Item {
                 width: parent.width - 210
                 wrapMode: Text.WordWrap
                 anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: "#33596F7A"
+        }
+
+        Text {
+            text: "Backup"
+            color: "#C6DCE8"
+            font.pixelSize: 12
+            font.bold: true
+        }
+
+        Row {
+            width: parent.width
+            height: 34
+            spacing: 8
+
+            ActionButton {
+                text: "Export Settings Only"
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: {
+                    if (typeof backend !== "undefined" && backend && backend.exportSettingsOnly) {
+                        backend.exportSettingsOnly()
+                    }
+                }
+            }
+
+            Text {
+                text: "Exports only the current settings panel state."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                width: parent.width - 210
+                wrapMode: Text.WordWrap
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        Row {
+            width: parent.width
+            height: 34
+            spacing: 8
+
+            ActionButton {
+                text: "Export Settings And Dock"
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: {
+                    if (typeof backend !== "undefined" && backend && backend.exportSettingsAndDock) {
+                        backend.exportSettingsAndDock()
+                    }
+                }
+            }
+
+            Text {
+                text: "Exports the current settings plus your pinned dock items in one file."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                width: parent.width - 210
+                wrapMode: Text.WordWrap
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        Row {
+            width: parent.width
+            height: 34
+            spacing: 8
+
+            ActionButton {
+                text: "Import Settings"
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: {
+                    if (typeof backend !== "undefined" && backend && backend.importSettings) {
+                        backend.importSettings()
+                    }
+                }
+            }
+
+            Text {
+                text: "Imports a backup file. Settings-only backups keep your current dock items."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                width: parent.width - 210
+                wrapMode: Text.WordWrap
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        Item {
+            width: parent.width
+            height: transferStatus.length > 0 ? 16 : 0
+            visible: transferStatus.length > 0
+
+            Text {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: transferStatus
+                color: transferError ? "#FFB3B3" : "#8EC9A8"
+                font.pixelSize: 10
+                wrapMode: Text.WordWrap
             }
         }
     }

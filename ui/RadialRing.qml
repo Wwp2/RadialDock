@@ -63,7 +63,7 @@ Item {
                                            ? 460
                                            : Math.max(180, folderGridRows * 104 + 58)
     readonly property int settingsPanelWidth: 420
-    readonly property int settingsPanelHeight: 800
+    readonly property int settingsPanelHeight: 980
     readonly property int groupPanelSize: Math.max(180, Math.min(280, 132 + (Math.max(groupEntries.length, 1) * 18)))
     readonly property real groupOrbitRadius: Math.max(44, Math.min(92, groupPanelSize * 0.28))
     readonly property int preferredStageWidth: settingsOpen

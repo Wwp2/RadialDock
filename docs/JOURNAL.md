@@ -2,7 +2,7 @@
 
 ## Current Version
 
-- Current version: **0.10.9**
+- Current version: **0.10.11**
 - Versioning mode: **Version-based tracking**
 - Original step-based plan: **Complete through Step 13**
 - Next tracking style: **Journal entries by version and targeted fixes/features**
@@ -12,9 +12,31 @@
 - Original development plan: Complete
 - `docs/DEV_PLAN.md`: Archived for reference only
 - Ongoing work: Post-plan fixes, polish, and new features tracked here
-- Current documented version: `0.10.9`
+- Current documented version: `0.10.11`
 
 ## Change Log
+
+### 2026-03-10 - Change 74 (Version bump to 0.10.11 + settings backup/import)
+
+- Confirmed the official documented version is now `0.10.11`.
+- Added single-file settings backup/import support:
+  - export settings only
+  - export settings and dock items
+  - import backup
+- Backup/import is available from the bottom of the settings panel and uses native file dialogs.
+- Settings-only imports leave the current dock items unchanged.
+- Settings-and-dock exports/imports include the current pinned ring items in the same backup file.
+
+### 2026-03-10 - Change 73 (Startup folder cache warm-up)
+
+- Extended `warmStartupCaches()` so startup warm-up now also prebuilds folder cache entries in the background when automatic folder refresh is enabled.
+- This moves the first folder refresh after boot into the hidden startup phase instead of waiting for the user's first folder open.
+- If automatic folder refresh is off, this warm-up still skips folder scans entirely, preserving the no-disk-touch behavior for that setting.
+
+### 2026-03-04 - Change 72 (Version bump to 0.10.10)
+
+- Confirmed the official documented version is now `0.10.10`.
+- Synced `VERSION.txt`, the journal, and README to version `0.10.10`.
 
 ### 2026-03-04 - Change 71 (Group preview count + white-dot simplification)
 

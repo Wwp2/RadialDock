@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Property, Qt, Signal, Slot, QProcess, QTimer
 from PySide6.QtGui import QCursor
 from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFileDialog
 
 from radialdock import install
 from radialdock.model import AppModel, AppPaths
@@ -23,6 +24,7 @@ class OverlayController(QObject):
     hideRequested = Signal()
     hotkeyApplyResult = Signal(bool, str, str)
     launchOnStartupChanged = Signal()
+    settingsTransferResult = Signal(bool, str)
 
     def __init__(
         self,
@@ -59,6 +61,68 @@ class OverlayController(QObject):
     @Slot()
     def resetAllQuickSettings(self) -> None:
         self._model.resetQuickSettings()
+
+    @Slot()
+    def exportSettingsOnly(self) -> None:
+        self._export_settings(include_items=False)
+
+    @Slot()
+    def exportSettingsAndDock(self) -> None:
+        self._export_settings(include_items=True)
+
+    @Slot()
+    def importSettings(self) -> None:
+        parent = QApplication.activeWindow()
+        start_dir = str(self._model.paths.config_dir)
+        selected_path, _ = QFileDialog.getOpenFileName(
+            parent,
+            "Import RadialDock Settings",
+            start_dir,
+            "RadialDock Backup (*.radialdock.json *.json);;JSON Files (*.json);;All Files (*)",
+        )
+        if not selected_path:
+            return
+
+        try:
+            payload = json.loads(Path(selected_path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            self.settingsTransferResult.emit(False, "Could not read the selected backup file.")
+            return
+
+        success, message = self._model.import_payload(payload)
+        self.settingsTransferResult.emit(success, message)
+
+    def _export_settings(self, include_items: bool) -> None:
+        parent = QApplication.activeWindow()
+        default_stem = "radialdock-settings-and-dock" if include_items else "radialdock-settings"
+        default_name = f"{default_stem}-{self._model.appVersion}.radialdock.json"
+        start_path = str(self._model.paths.config_dir / default_name)
+        selected_path, _ = QFileDialog.getSaveFileName(
+            parent,
+            "Export RadialDock Settings",
+            start_path,
+            "RadialDock Backup (*.radialdock.json *.json);;JSON Files (*.json);;All Files (*)",
+        )
+        if not selected_path:
+            return
+
+        target = Path(selected_path)
+        if not target.suffix:
+            target = target.with_suffix(".radialdock.json")
+        elif target.suffix.lower() == ".radialdock":
+            target = target.with_suffix(".radialdock.json")
+
+        payload = self._model.export_payload(include_items=include_items)
+        try:
+            target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        except OSError:
+            self.settingsTransferResult.emit(False, "Could not write the export file.")
+            return
+
+        if include_items:
+            self.settingsTransferResult.emit(True, "Settings and dock items exported.")
+        else:
+            self.settingsTransferResult.emit(True, "Settings exported.")
 
     def get_launch_on_startup_enabled(self) -> bool:
         return install.is_startup_enabled()

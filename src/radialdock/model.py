@@ -9,6 +9,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from ctypes import wintypes
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import (
@@ -67,6 +68,7 @@ IMAGE_EXTENSIONS = {
     ".tif",
     ".tiff",
 }
+EXPORT_FILE_VERSION = 1
 
 SHGFI_ICON = 0x000000100
 SHGFI_LARGEICON = 0x000000000
@@ -251,6 +253,18 @@ class AppModel(QObject):
         payload = asdict(settings)
         self._settings_revision += 1
         self.paths.config_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    def _emit_all_settings_changed(self, ring_changed: bool) -> None:
+        self.hotkeyChanged.emit()
+        self.startupMessageEnabledChanged.emit()
+        self.automaticIconRefreshChanged.emit()
+        self.automaticFolderRefreshChanged.emit()
+        self.closeAfterLaunchChanged.emit()
+        self.animationSpeedScaleChanged.emit()
+        self.animationsEnabledChanged.emit()
+        self.folderCompactThresholdChanged.emit()
+        if ring_changed:
+            self.ringItemsChanged.emit()
 
     def get_hotkey(self) -> str:
         return self.settings.hotkey
@@ -493,6 +507,84 @@ class AppModel(QObject):
         self.animationSpeedScaleChanged.emit()
         self.animationsEnabledChanged.emit()
         self.folderCompactThresholdChanged.emit()
+
+    def export_payload(self, include_items: bool) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "format": "radialdock-export",
+            "export_version": EXPORT_FILE_VERSION,
+            "exported_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "settings": {
+                "hotkey": self.settings.hotkey,
+                "startup_message_enabled": self.settings.startup_message_enabled,
+                "automatic_icon_refresh": self.settings.automatic_icon_refresh,
+                "automatic_folder_refresh": self.settings.automatic_folder_refresh,
+                "close_after_launch": self.settings.close_after_launch,
+                "animation_speed_scale": self.settings.animation_speed_scale,
+                "animations_enabled": self.settings.animations_enabled,
+                "folder_compact_threshold": self.settings.folder_compact_threshold,
+            },
+            "includes_items": bool(include_items),
+        }
+        if include_items:
+            payload["items"] = self.get_ring_items()
+        return payload
+
+    def import_payload(self, payload: object) -> tuple[bool, str]:
+        if not isinstance(payload, dict):
+            return False, "Invalid backup file."
+
+        if str(payload.get("format", "")) != "radialdock-export":
+            return False, "This file is not a RadialDock export."
+
+        settings_payload = payload.get("settings")
+        if not isinstance(settings_payload, dict):
+            return False, "The export file is missing settings data."
+
+        imported_hotkey = str(settings_payload.get("hotkey", self.settings.hotkey)).strip() or "Ctrl+Space"
+        self.settings.hotkey = imported_hotkey
+        self.settings.startup_message_enabled = bool(
+            settings_payload.get("startup_message_enabled", self.settings.startup_message_enabled)
+        )
+        self.settings.automatic_icon_refresh = bool(
+            settings_payload.get("automatic_icon_refresh", self.settings.automatic_icon_refresh)
+        )
+        self.settings.automatic_folder_refresh = bool(
+            settings_payload.get("automatic_folder_refresh", self.settings.automatic_folder_refresh)
+        )
+        self.settings.close_after_launch = bool(
+            settings_payload.get("close_after_launch", self.settings.close_after_launch)
+        )
+        self.settings.animation_speed_scale = self._sanitize_animation_speed(
+            settings_payload.get("animation_speed_scale", self.settings.animation_speed_scale)
+        )
+        self.settings.animations_enabled = bool(
+            settings_payload.get("animations_enabled", self.settings.animations_enabled)
+        )
+        self.settings.folder_compact_threshold = self._sanitize_compact_threshold(
+            settings_payload.get("folder_compact_threshold", self.settings.folder_compact_threshold)
+        )
+
+        ring_changed = False
+        if bool(payload.get("includes_items", False)):
+            raw_items = payload.get("items", [])
+            if not isinstance(raw_items, list):
+                return False, "The export file has invalid dock items."
+            self.settings.items = [
+                self._dock_item_from_raw(raw_item, index)
+                for index, raw_item in enumerate(raw_items)
+                if isinstance(raw_item, dict)
+            ]
+            self.settings.folder_cache = {}
+            ring_changed = True
+
+        self._icon_cache.clear()
+        self._save_settings(self.settings)
+        self._emit_all_settings_changed(ring_changed=ring_changed)
+        QMetaObject.invokeMethod(self, "_bump_preview_version", Qt.ConnectionType.QueuedConnection)
+
+        if ring_changed:
+            return True, "Settings and dock items imported."
+        return True, "Settings imported."
 
     @Slot(str, str, str, result=str)
     def iconDataUrl(self, path: str, kind: str, label: str) -> str:
@@ -1073,6 +1165,27 @@ class AppModel(QObject):
                 self.iconDataUrl(item.path, item.kind, item.label)
             except Exception:
                 continue
+
+        if not self.settings.automatic_folder_refresh:
+            return
+
+        if self._refresh_pending:
+            return
+
+        items_snapshot = self._clone_items()
+        folder_cache_snapshot = self._clone_folder_cache()
+        revision = self._settings_revision
+        self._refresh_pending = True
+
+        def worker() -> None:
+            next_cache, _ = self._refresh_folder_cache_snapshot(
+                items_snapshot,
+                folder_cache_snapshot,
+                True,
+            )
+            self._refreshResolved.emit(revision, items_snapshot, next_cache, False)
+
+        self._preview_executor.submit(worker)
 
     def _flatten_items(self, items: list[DockItem]) -> list[DockItem]:
         flattened: list[DockItem] = []
