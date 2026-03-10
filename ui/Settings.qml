@@ -159,6 +159,7 @@ Item {
             iconRefreshSwitch.checked = !!appModel.automaticIconRefresh
             folderRefreshSwitch.checked = !!appModel.automaticFolderRefresh
             closeAfterLaunchSwitch.checked = !!appModel.closeAfterLaunch
+            automaticAlignmentSwitch.checked = !!appModel.automaticItemAlignment
         }
         if (typeof backend !== "undefined" && backend && startupOnBootSwitch) {
             startupOnBootSwitch.checked = !!backend.launchOnStartupEnabled
@@ -189,6 +190,9 @@ Item {
             settings.refreshFromModel()
         }
         function onCloseAfterLaunchChanged() {
+            settings.refreshFromModel()
+        }
+        function onAutomaticItemAlignmentChanged() {
             settings.refreshFromModel()
         }
         function onHotkeyChanged() {
@@ -579,6 +583,40 @@ Item {
             }
             Text {
                 text: "On = hide the menu after opening a real item. Off = keep it open. Opening folders stays open."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                width: parent.width - 270
+                wrapMode: Text.WordWrap
+                lineHeight: 0.8
+                lineHeightMode: Text.ProportionalHeight
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        Row {
+            width: parent.width
+            height: 42
+            spacing: 10
+
+            Text {
+                text: "Automatic Item Alignement"
+                color: "#D7E8F4"
+                font.pixelSize: 12
+                width: 150
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Switch {
+                id: automaticAlignmentSwitch
+                checked: true
+                anchors.verticalCenter: parent.verticalCenter
+                onToggled: {
+                    if (typeof appModel !== "undefined" && appModel) {
+                        appModel.automaticItemAlignment = checked
+                    }
+                }
+            }
+            Text {
+                text: "On = spread items evenly around the ring. Off = keep them on the circle but let you bunch them on one side."
                 color: "#8DA7B9"
                 font.pixelSize: 10
                 width: parent.width - 270

@@ -2,7 +2,7 @@
 
 ## Current Version
 
-- Current version: **0.10.11**
+- Current version: **0.11.0**
 - Versioning mode: **Version-based tracking**
 - Original step-based plan: **Complete through Step 13**
 - Next tracking style: **Journal entries by version and targeted fixes/features**
@@ -12,9 +12,18 @@
 - Original development plan: Complete
 - `docs/DEV_PLAN.md`: Archived for reference only
 - Ongoing work: Post-plan fixes, polish, and new features tracked here
-- Current documented version: `0.10.11`
+- Current documented version: `0.11.0`
 
 ## Change Log
+
+### 2026-03-10 - Change 75 (Version bump to 0.11.0 + automatic item alignment toggle)
+
+- Confirmed the official documented version is now `0.11.0`.
+- Added `Automatic Item Alignement` to the settings panel, placed under `Close after launch`.
+- The toggle defaults to on:
+  - on = ring items spread evenly around the dock
+  - off = items still stay on the circular path, but users can bunch them on one side or place them close together
+- Top-level ring items now persist their angular position so freer placement survives restarts and export/import.
 
 ### 2026-03-10 - Change 74 (Version bump to 0.10.11 + settings backup/import)
 

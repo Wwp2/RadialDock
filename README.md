@@ -5,7 +5,7 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 ## MVP Status
 
 - Original step-based MVP plan is complete.
-- Current documented version: `0.10.11`
+- Current documented version: `0.11.0`
 - Ongoing development is now tracked by versioned fixes/features instead of the original step plan.
 
 - Step 1 complete: repo scaffold, `.venv`, dependencies, hello overlay QML window.
@@ -64,6 +64,7 @@ Interaction notes:
 - In normal mode, you can drag an item out of an open group sub-ring and drop it onto the main dock to move it back to the top level.
 - Settings now include `Restart App` and `Quit App` controls for full process control.
 - Settings now include single-file backup controls for exporting settings only, exporting settings plus dock items, and importing a backup.
+- Settings now include an `Automatic Item Alignement` toggle so the ring can switch between even spacing and freer user-bunched placement along the circle.
 - Settings include a `Close after launch` toggle to optionally dismiss the menu after opening real items.
 - Settings include a capture-based shortcut picker at the top for keyboard or mouse-button launch shortcuts.
 - Settings `App Control` now includes a `Launch on startup` toggle.

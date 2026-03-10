@@ -45,6 +45,9 @@ Item {
     property real dragDistance: 0.0
     property bool loadedFromSettings: false
     property bool skipNextModelSync: false
+    property bool automaticItemAlignment: (typeof appModel !== "undefined" && appModel)
+                                          ? appModel.automaticItemAlignment
+                                          : true
 
     readonly property real centerX: width / 2
     readonly property real centerY: height / 2
@@ -63,7 +66,7 @@ Item {
                                            ? 460
                                            : Math.max(180, folderGridRows * 104 + 58)
     readonly property int settingsPanelWidth: 420
-    readonly property int settingsPanelHeight: 980
+    readonly property int settingsPanelHeight: 1030
     readonly property int groupPanelSize: Math.max(180, Math.min(280, 132 + (Math.max(groupEntries.length, 1) * 18)))
     readonly property real groupOrbitRadius: Math.max(44, Math.min(92, groupPanelSize * 0.28))
     readonly property int preferredStageWidth: settingsOpen
@@ -112,6 +115,21 @@ Item {
         return (slotIndex / count) * Math.PI * 2
     }
 
+    function normalizedAngle(angle) {
+        var next = angle
+        while (next < 0) {
+            next += Math.PI * 2
+        }
+        while (next >= Math.PI * 2) {
+            next -= Math.PI * 2
+        }
+        return next
+    }
+
+    function angleForPoint(px, py) {
+        return normalizedAngle(Math.atan2(py - centerY, px - centerX) + Math.PI / 2)
+    }
+
     function pathLooksLikeImage(localPath, kind) {
         if ((kind || "").toLowerCase() !== "file" || !localPath) {
             return false
@@ -137,9 +155,19 @@ Item {
         return clampInt(guess, 2, 8)
     }
 
+    function itemAngle(entry, itemIndex) {
+        if (automaticItemAlignment) {
+            return angleForSlot(itemIndex, Math.max(ringItems.count, 1))
+        }
+        if (!entry) {
+            return angleForSlot(itemIndex, Math.max(ringItems.count, 1))
+        }
+        return normalizedAngle(Number(entry.angle || 0))
+    }
+
     function slotPosition(slotIndex) {
-        var total = Math.max(ringItems.count, 1)
-        var angle = angleForSlot(slotIndex, total) - Math.PI / 2
+        var entry = ringItems.get(slotIndex)
+        var angle = itemAngle(entry, slotIndex) - Math.PI / 2
         return {
             x: centerX + Math.cos(angle) * orbitRadius,
             y: centerY + Math.sin(angle) * orbitRadius
@@ -147,6 +175,9 @@ Item {
     }
 
     function slotForIndex(itemIndex) {
+        if (!automaticItemAlignment) {
+            return itemIndex
+        }
         if (groupEditMode) {
             return itemIndex
         }
@@ -166,6 +197,9 @@ Item {
     }
 
     function nearestSlotForPoint(px, py) {
+        if (!automaticItemAlignment) {
+            return ringItems.count
+        }
         if (ringItems.count <= 1) {
             return 0
         }
@@ -212,6 +246,7 @@ Item {
             "color": entry.color || colorPalette[0],
             "path": entry.path || "",
             "kind": entry.kind || "file",
+            "angle": Number(entry.angle || 0),
             "children": children
         }
     }
@@ -226,6 +261,7 @@ Item {
             "color": entry.color || colorPalette[itemIndex % colorPalette.length],
             "path": entry.path || "",
             "kind": entry.kind || "file",
+            "angle": Number(entry.angle || 0),
             "children": parseChildrenJson(entry.childrenJson)
         }
     }
@@ -320,6 +356,11 @@ Item {
         var pointerDistance = Math.sqrt((dx * dx) + (dy * dy))
         dragDistance = pointerDistance
 
+        if (!automaticItemAlignment) {
+            hoverIndex = itemIndex
+            return
+        }
+
         if (pointerDistance <= centerIgnoreRadius) {
             // Ignore center region while rearranging to avoid accidental remove/jitter.
             hoverIndex = draggedIndex
@@ -341,6 +382,21 @@ Item {
         if (groupEditMode) {
             if (mergeTargetIndex >= 0 && mergeTargetIndex !== itemIndex) {
                 mergeItems(itemIndex, mergeTargetIndex)
+            }
+            resetDragState()
+            return
+        }
+
+        if (!automaticItemAlignment) {
+            if (!isRemoveCandidateAt(px, py)) {
+                ringItems.setProperty(itemIndex, "angle", angleForPoint(px, py))
+                schedulePersist()
+            } else {
+                removingIndex = itemIndex
+                removeIndexPending = itemIndex
+                hoverIndex = -1
+                removeTimer.restart()
+                return
             }
             resetDragState()
             return
@@ -542,6 +598,7 @@ Item {
                 "color": onlyEntry.color || colorPalette[openGroupIndex % colorPalette.length],
                 "path": onlyEntry.path || "",
                 "kind": onlyEntry.kind || "file",
+                "angle": Number(onlyEntry.angle || ringItems.get(openGroupIndex).angle || 0),
                 "childrenJson": JSON.stringify(onlyEntry.children || [])
             })
             closeGroupView()
@@ -551,6 +608,7 @@ Item {
                 "color": ringItems.get(openGroupIndex).color || colorPalette[openGroupIndex % colorPalette.length],
                 "path": "",
                 "kind": "group",
+                "angle": Number(ringItems.get(openGroupIndex).angle || 0),
                 "childrenJson": JSON.stringify(nextEntries)
             })
         }
@@ -561,6 +619,7 @@ Item {
             "color": movedEntry.color || colorPalette[insertAt % colorPalette.length],
             "path": movedEntry.path || "",
             "kind": movedEntry.kind || "file",
+            "angle": automaticItemAlignment ? angleForSlot(insertAt, Math.max(ringItems.count + 1, 1)) : angleForPoint(px, py),
             "childrenJson": JSON.stringify(movedEntry.children || [])
         })
 
@@ -605,6 +664,7 @@ Item {
             "color": targetEntry.color || sourceEntry.color || colorPalette[0],
             "path": "",
             "kind": "group",
+            "angle": Number(targetEntry.angle || 0),
             "childrenJson": JSON.stringify(mergedChildren)
         }
 
@@ -807,6 +867,7 @@ Item {
                 "color": colorForPath(localPath),
                 "path": localPath,
                 "kind": kindFromPath(localPath),
+                "angle": angleForSlot(ringItems.count, Math.max(ringItems.count + 1, 1)),
                 "childrenJson": "[]"
             })
             appendedCount += 1
@@ -825,6 +886,7 @@ Item {
                 "color": entry.color || colorPalette[i % colorPalette.length],
                 "path": entry.path || "",
                 "kind": entry.kind || "file",
+                "angle": Number(entry.angle || 0),
                 "children": parseChildrenJson(entry.childrenJson)
             })
         }
@@ -855,6 +917,7 @@ Item {
                     "color": item.color || colorPalette[i % colorPalette.length],
                     "path": item.path || "",
                     "kind": item.kind || "file",
+                    "angle": Number(item.angle || angleForSlot(i, Math.max(appModel.ringItems.length, 1))),
                     "childrenJson": JSON.stringify(item.children || [])
                 })
             }
@@ -882,6 +945,9 @@ Item {
             }
             ring.folderEntries = entries
             ring.folderLoading = false
+        }
+        function onAutomaticItemAlignmentChanged() {
+            ring.automaticItemAlignment = !!appModel.automaticItemAlignment
         }
     }
 

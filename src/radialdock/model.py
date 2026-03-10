@@ -108,6 +108,7 @@ class DockItem:
     label: str
     kind: str
     color: str = "#62B9FF"
+    angle: float = 0.0
     children: list["DockItem"] = field(default_factory=list)
 
 
@@ -122,6 +123,7 @@ class Settings:
     automatic_icon_refresh: bool = True
     automatic_folder_refresh: bool = True
     close_after_launch: bool = DEFAULT_CLOSE_AFTER_LAUNCH
+    automatic_item_alignment: bool = True
     animation_speed_scale: float = DEFAULT_ANIMATION_SPEED_SCALE
     animations_enabled: bool = DEFAULT_ANIMATIONS_ENABLED
     folder_compact_threshold: int = DEFAULT_FOLDER_COMPACT_THRESHOLD
@@ -178,6 +180,7 @@ class AppModel(QObject):
     automaticIconRefreshChanged = Signal()
     automaticFolderRefreshChanged = Signal()
     closeAfterLaunchChanged = Signal()
+    automaticItemAlignmentChanged = Signal()
     folderEntriesReady = Signal(str, "QVariantList")
     _folderEntriesResolved = Signal(str, object)
     _refreshResolved = Signal(int, object, object, bool)
@@ -234,6 +237,7 @@ class AppModel(QObject):
                     raw.get("automatic_folder_refresh", raw.get("refresh_on_open", True))
                 ),
                 close_after_launch=bool(raw.get("close_after_launch", DEFAULT_CLOSE_AFTER_LAUNCH)),
+                automatic_item_alignment=bool(raw.get("automatic_item_alignment", True)),
                 animation_speed_scale=self._sanitize_animation_speed(
                     raw.get("animation_speed_scale", DEFAULT_ANIMATION_SPEED_SCALE)
                 ),
@@ -260,6 +264,7 @@ class AppModel(QObject):
         self.automaticIconRefreshChanged.emit()
         self.automaticFolderRefreshChanged.emit()
         self.closeAfterLaunchChanged.emit()
+        self.automaticItemAlignmentChanged.emit()
         self.animationSpeedScaleChanged.emit()
         self.animationsEnabledChanged.emit()
         self.folderCompactThresholdChanged.emit()
@@ -368,6 +373,7 @@ class AppModel(QObject):
             label=label,
             kind=kind,
             color=color,
+            angle=float(raw_item.get("angle", 0.0) or 0.0),
             children=children,
         )
 
@@ -377,6 +383,7 @@ class AppModel(QObject):
             "label": item.label,
             "kind": item.kind,
             "color": item.color,
+            "angle": item.angle,
         }
         if item.children:
             payload["children"] = [self._serialize_dock_item(child) for child in item.children]
@@ -436,6 +443,17 @@ class AppModel(QObject):
         self._save_settings(self.settings)
         self.closeAfterLaunchChanged.emit()
 
+    def get_automatic_item_alignment(self) -> bool:
+        return self.settings.automatic_item_alignment
+
+    def set_automatic_item_alignment(self, value: bool) -> None:
+        normalized = bool(value)
+        if self.settings.automatic_item_alignment == normalized:
+            return
+        self.settings.automatic_item_alignment = normalized
+        self._save_settings(self.settings)
+        self.automaticItemAlignmentChanged.emit()
+
     def set_animation_speed_scale(self, value: float) -> None:
         sanitized = self._sanitize_animation_speed(value)
         if self.settings.animation_speed_scale == sanitized:
@@ -494,6 +512,7 @@ class AppModel(QObject):
         self.settings.automatic_icon_refresh = True
         self.settings.automatic_folder_refresh = True
         self.settings.close_after_launch = DEFAULT_CLOSE_AFTER_LAUNCH
+        self.settings.automatic_item_alignment = True
         self.settings.hotkey = "Ctrl+Space"
         self.settings.animation_speed_scale = DEFAULT_ANIMATION_SPEED_SCALE
         self.settings.animations_enabled = DEFAULT_ANIMATIONS_ENABLED
@@ -504,6 +523,7 @@ class AppModel(QObject):
         self.automaticIconRefreshChanged.emit()
         self.automaticFolderRefreshChanged.emit()
         self.closeAfterLaunchChanged.emit()
+        self.automaticItemAlignmentChanged.emit()
         self.animationSpeedScaleChanged.emit()
         self.animationsEnabledChanged.emit()
         self.folderCompactThresholdChanged.emit()
@@ -519,6 +539,7 @@ class AppModel(QObject):
                 "automatic_icon_refresh": self.settings.automatic_icon_refresh,
                 "automatic_folder_refresh": self.settings.automatic_folder_refresh,
                 "close_after_launch": self.settings.close_after_launch,
+                "automatic_item_alignment": self.settings.automatic_item_alignment,
                 "animation_speed_scale": self.settings.animation_speed_scale,
                 "animations_enabled": self.settings.animations_enabled,
                 "folder_compact_threshold": self.settings.folder_compact_threshold,
@@ -553,6 +574,9 @@ class AppModel(QObject):
         )
         self.settings.close_after_launch = bool(
             settings_payload.get("close_after_launch", self.settings.close_after_launch)
+        )
+        self.settings.automatic_item_alignment = bool(
+            settings_payload.get("automatic_item_alignment", self.settings.automatic_item_alignment)
         )
         self.settings.animation_speed_scale = self._sanitize_animation_speed(
             settings_payload.get("animation_speed_scale", self.settings.animation_speed_scale)
@@ -943,6 +967,7 @@ class AppModel(QObject):
             label=item.label,
             kind=item.kind,
             color=item.color,
+            angle=item.angle,
             children=[self._clone_dock_item(child) for child in item.children],
         )
 
@@ -1000,6 +1025,7 @@ class AppModel(QObject):
                 label=item.label or "Group",
                 kind="group",
                 color=item.color,
+                angle=item.angle,
                 children=next_children,
             )
             return [normalized_group], group_changed
@@ -1254,6 +1280,13 @@ class AppModel(QObject):
         get_close_after_launch,
         set_close_after_launch,
         notify=closeAfterLaunchChanged,
+    )
+
+    automaticItemAlignment = Property(
+        bool,
+        get_automatic_item_alignment,
+        set_automatic_item_alignment,
+        notify=automaticItemAlignmentChanged,
     )
 
     ringItems = Property(
