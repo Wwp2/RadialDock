@@ -5,7 +5,7 @@ RadialDock is a PySide6 + Qt Quick launcher overlay that appears around the curs
 ## MVP Status
 
 - Original step-based MVP plan is complete.
-- Current documented version: `0.12.1`
+- Current documented version: `0.12.3`
 - Ongoing development is now tracked by versioned fixes/features instead of the original step plan.
 
 - Step 1 complete: repo scaffold, `.venv`, dependencies, hello overlay QML window.

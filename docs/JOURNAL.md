@@ -2,7 +2,7 @@
 
 ## Current Version
 
-- Current version: **0.12.1**
+- Current version: **0.12.3**
 - Versioning mode: **Version-based tracking**
 - Original step-based plan: **Complete through Step 13**
 - Next tracking style: **Journal entries by version and targeted fixes/features**
@@ -12,9 +12,17 @@
 - Original development plan: Complete
 - `docs/DEV_PLAN.md`: Archived for reference only
 - Ongoing work: Post-plan fixes, polish, and new features tracked here
-- Current documented version: `0.12.1`
+- Current documented version: `0.12.3`
 
 ## Change Log
+
+### 2026-03-11 - Change 80 (Version bump to 0.12.3 + decorative ring alignment)
+
+- Confirmed the official documented version is now `0.12.3`.
+- Aligned the two decorative semi-opaque rings in the main dock to the actual item orbit:
+  - the inner decorative ring now touches the inner edge of the dock items
+  - the outer decorative ring now touches the outer edge of the dock items
+- The decorative ring sizes now derive from `orbitRadius` and item size instead of fixed percentages.
 
 ### 2026-03-10 - Change 79 (Separate click intent from drag intent)
 

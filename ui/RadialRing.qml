@@ -50,6 +50,10 @@ Item {
     readonly property real centerX: width / 2
     readonly property real centerY: height / 2
     readonly property real orbitRadius: Math.min(width, height) * 0.37
+    readonly property real ringItemDiameter: 60
+    readonly property real ringItemRadius: ringItemDiameter / 2
+    readonly property real decorativeOuterRingDiameter: (orbitRadius + ringItemRadius) * 2
+    readonly property real decorativeInnerRingDiameter: Math.max(0, (orbitRadius - ringItemRadius) * 2)
     readonly property real centerIgnoreRadius: Math.min(width, height) * 0.24
     readonly property real removeThreshold: Math.min(width, height) * 0.49
     readonly property bool removeCandidate: !groupEditMode && draggedIndex >= 0 && dragDistance > removeThreshold
@@ -990,8 +994,8 @@ Item {
 
     Rectangle {
         anchors.centerIn: parent
-        width: ring.width * 0.86
-        height: ring.height * 0.86
+        width: ring.decorativeOuterRingDiameter
+        height: ring.decorativeOuterRingDiameter
         radius: width / 2
         color: "transparent"
         border.color: "#2DFFFFFF"
@@ -1019,8 +1023,8 @@ Item {
 
     Rectangle {
         anchors.centerIn: parent
-        width: ring.width * 0.54
-        height: ring.height * 0.54
+        width: ring.decorativeInnerRingDiameter
+        height: ring.decorativeInnerRingDiameter
         radius: width / 2
         color: "transparent"
         border.color: "#3FE6FFBF"
