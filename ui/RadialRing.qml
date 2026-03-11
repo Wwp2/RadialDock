@@ -45,9 +45,7 @@ Item {
     property real dragDistance: 0.0
     property bool loadedFromSettings: false
     property bool skipNextModelSync: false
-    property bool automaticItemAlignment: (typeof appModel !== "undefined" && appModel)
-                                          ? appModel.automaticItemAlignment
-                                          : true
+    property bool automaticItemAlignment: true
 
     readonly property real centerX: width / 2
     readonly property real centerY: height / 2
@@ -66,7 +64,7 @@ Item {
                                            ? 460
                                            : Math.max(180, folderGridRows * 104 + 58)
     readonly property int settingsPanelWidth: 420
-    readonly property int settingsPanelHeight: 1030
+    readonly property int settingsPanelHeight: 950
     readonly property int groupPanelSize: Math.max(180, Math.min(280, 132 + (Math.max(groupEntries.length, 1) * 18)))
     readonly property real groupOrbitRadius: Math.max(44, Math.min(92, groupPanelSize * 0.28))
     readonly property int preferredStageWidth: settingsOpen
@@ -128,6 +126,13 @@ Item {
 
     function angleForPoint(px, py) {
         return normalizedAngle(Math.atan2(py - centerY, px - centerX) + Math.PI / 2)
+    }
+
+    function captureCurrentAlignedAngles() {
+        for (var i = 0; i < ringItems.count; i++) {
+            ringItems.setProperty(i, "angle", angleForSlot(i, Math.max(ringItems.count, 1)))
+        }
+        schedulePersist()
     }
 
     function pathLooksLikeImage(localPath, kind) {
@@ -907,6 +912,9 @@ Item {
         closeGroupView()
         groupNamingVisible = false
         renameTargetIndex = -1
+        automaticItemAlignment = (typeof appModel !== "undefined" && appModel)
+                                 ? !!appModel.automaticItemAlignment
+                                 : true
         ringItems.clear()
 
         if (typeof appModel !== "undefined" && appModel && appModel.ringItems && appModel.ringItems.length > 0) {
@@ -947,7 +955,11 @@ Item {
             ring.folderLoading = false
         }
         function onAutomaticItemAlignmentChanged() {
-            ring.automaticItemAlignment = !!appModel.automaticItemAlignment
+            var nextValue = !!appModel.automaticItemAlignment
+            if (ring.automaticItemAlignment && !nextValue) {
+                ring.captureCurrentAlignedAngles()
+            }
+            ring.automaticItemAlignment = nextValue
         }
     }
 
@@ -1049,10 +1061,13 @@ Item {
             readonly property real revealStart: (index / Math.max(total, 1)) * 0.36
             readonly property real revealValue: Math.max(0.0, Math.min(1.0, (ring.openProgress - revealStart) / (1.0 - revealStart)))
             property bool dragging: false
+            property bool pressActive: false
             property real dragCenterX: targetPos.x
             property real dragCenterY: targetPos.y
             property real pointerOffsetX: 0.0
             property real pointerOffsetY: 0.0
+            property real pressStartX: 0.0
+            property real pressStartY: 0.0
             property real movedDistance: 0.0
 
             width: 60
@@ -1243,40 +1258,51 @@ Item {
 
                 onPressed: function(mouse) {
                     var p = dragArea.mapToItem(ring, mouse.x, mouse.y)
-                    // Re-anchor drag origin to the current visual slot every time.
-                    // Without this, prior drags can leave stale anchor values and cause icon "pop".
+                    pressActive = true
+                    dragging = false
                     dragCenterX = targetPos.x
                     dragCenterY = targetPos.y
-                    dragging = true
                     pointerOffsetX = p.x - dragCenterX
                     pointerOffsetY = p.y - dragCenterY
+                    pressStartX = p.x
+                    pressStartY = p.y
                     movedDistance = 0.0
-                    ring.startDrag(index)
-                    ring.updateDrag(index, p.x, p.y)
                     mouse.accepted = true
                 }
 
                 onPositionChanged: function(mouse) {
-                    if (!dragging) {
+                    if (!pressActive) {
                         return
                     }
                     var p = dragArea.mapToItem(ring, mouse.x, mouse.y)
+                    var dx = p.x - pressStartX
+                    var dy = p.y - pressStartY
+                    movedDistance = Math.sqrt((dx * dx) + (dy * dy))
+
+                    if (!dragging) {
+                        if (movedDistance < 8) {
+                            return
+                        }
+                        dragging = true
+                        ring.startDrag(index)
+                    }
+
                     dragCenterX = p.x - pointerOffsetX
                     dragCenterY = p.y - pointerOffsetY
-                    var dx = dragCenterX - targetPos.x
-                    var dy = dragCenterY - targetPos.y
-                    movedDistance = Math.sqrt((dx * dx) + (dy * dy))
                     ring.updateDrag(index, p.x, p.y)
                 }
 
                 onReleased: function(mouse) {
-                    if (!dragging) {
+                    if (!pressActive) {
                         return
                     }
                     var p = dragArea.mapToItem(ring, mouse.x, mouse.y)
-                    var wasClick = movedDistance < 8
+                    var wasClick = !dragging
+                    pressActive = false
                     dragging = false
-                    ring.finishDrag(index, p.x, p.y)
+                    if (!wasClick) {
+                        ring.finishDrag(index, p.x, p.y)
+                    }
                     dragCenterX = targetPos.x
                     dragCenterY = targetPos.y
                     if (wasClick) {
@@ -1287,9 +1313,10 @@ Item {
                 }
 
                 onCanceled: {
-                    if (!dragging) {
+                    if (!pressActive) {
                         return
                     }
+                    pressActive = false
                     dragging = false
                     dragCenterX = targetPos.x
                     dragCenterY = targetPos.y
@@ -1468,10 +1495,13 @@ Item {
                     return ""
                 }
                 property bool dragging: false
+                property bool pressActive: false
                 property real dragCenterX: pos.x
                 property real dragCenterY: pos.y
                 property real pointerOffsetX: 0
                 property real pointerOffsetY: 0
+                property real pressStartX: 0
+                property real pressStartY: 0
                 property real movedDistance: 0
 
                 width: 52
@@ -1544,31 +1574,41 @@ Item {
                     preventStealing: true
                     onPressed: function(mouse) {
                         var p = groupOverlay.mapFromItem(this, mouse.x, mouse.y)
+                        pressActive = true
+                        dragging = false
                         dragCenterX = pos.x
                         dragCenterY = pos.y
-                        dragging = true
                         pointerOffsetX = p.x - dragCenterX
                         pointerOffsetY = p.y - dragCenterY
+                        pressStartX = p.x
+                        pressStartY = p.y
                         movedDistance = 0
                         mouse.accepted = true
                     }
                     onPositionChanged: function(mouse) {
-                        if (!dragging) {
+                        if (!pressActive) {
                             return
                         }
                         var p = groupOverlay.mapFromItem(this, mouse.x, mouse.y)
+                        var dx = p.x - pressStartX
+                        var dy = p.y - pressStartY
+                        movedDistance = Math.sqrt((dx * dx) + (dy * dy))
+                        if (!dragging) {
+                            if (movedDistance < 8) {
+                                return
+                            }
+                            dragging = true
+                        }
                         dragCenterX = p.x - pointerOffsetX
                         dragCenterY = p.y - pointerOffsetY
-                        var dx = dragCenterX - pos.x
-                        var dy = dragCenterY - pos.y
-                        movedDistance = Math.sqrt((dx * dx) + (dy * dy))
                     }
                     onReleased: function(mouse) {
-                        if (!dragging) {
+                        if (!pressActive) {
                             return
                         }
                         var ringPoint = ring.mapFromItem(this, mouse.x, mouse.y)
-                        var wasClick = movedDistance < 8
+                        var wasClick = !dragging
+                        pressActive = false
                         dragging = false
                         dragCenterX = pos.x
                         dragCenterY = pos.y
@@ -1581,6 +1621,7 @@ Item {
                         }
                     }
                     onCanceled: {
+                        pressActive = false
                         dragging = false
                         dragCenterX = pos.x
                         dragCenterY = pos.y

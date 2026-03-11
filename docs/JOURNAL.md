@@ -2,7 +2,7 @@
 
 ## Current Version
 
-- Current version: **0.11.0**
+- Current version: **0.12.1**
 - Versioning mode: **Version-based tracking**
 - Original step-based plan: **Complete through Step 13**
 - Next tracking style: **Journal entries by version and targeted fixes/features**
@@ -12,9 +12,35 @@
 - Original development plan: Complete
 - `docs/DEV_PLAN.md`: Archived for reference only
 - Ongoing work: Post-plan fixes, polish, and new features tracked here
-- Current documented version: `0.11.0`
+- Current documented version: `0.12.1`
 
 ## Change Log
+
+### 2026-03-10 - Change 79 (Separate click intent from drag intent)
+
+- Hardened input handling for ring items and group items so a press no longer immediately starts a drag.
+- Dragging now begins only after movement crosses a small threshold.
+- Result:
+  - off-center clicks no longer nudge the icon before opening it
+  - slight drag attempts no longer accidentally open the item as a click
+  - once a drag has started, release is treated as a drag finish instead of an open action
+
+### 2026-03-10 - Change 78 (Version bump to 0.12.1)
+
+- Confirmed the official documented version is now `0.12.1`.
+- Synced `VERSION.txt`, the journal, and README to version `0.12.1`.
+
+### 2026-03-10 - Change 77 (Fix first toggle-off jump for auto alignment)
+
+- Fixed the first-time toggle edge case for `Automatic Item Alignement`.
+- Root cause: the ring's local alignment state was still using a live binding to the backend setting, so on the first toggle-off it could already read as false before the transition handler had a chance to snapshot the current aligned positions.
+- The ring now keeps its own local alignment state and refreshes it explicitly from the model, so the first transition to free-placement mode preserves the current visible layout correctly.
+
+### 2026-03-10 - Change 76 (Keep visible positions when turning off auto alignment)
+
+- Fixed the transition when `Automatic Item Alignement` is turned off.
+- The ring now snapshots the current evenly spaced visible positions into each top-level item's stored angle before switching to free placement mode.
+- Result: items no longer jump to unrelated positions when the toggle is turned off.
 
 ### 2026-03-10 - Change 75 (Version bump to 0.11.0 + automatic item alignment toggle)
 
