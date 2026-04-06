@@ -16,6 +16,19 @@
 
 ## Change Log
 
+### 2026-04-06 - Change 88 (Non-image icons now resolve placeholder-first in the background)
+
+- Changed `iconDataUrl()` so non-image file, folder, and shortcut icons no longer block the UI on first resolve.
+- The UI now gets a cheap placeholder immediately, while the real Windows icon is resolved on the background worker and swapped in afterward.
+- This reduces the cold-boot hitch where the first folder open could still stall on synchronous shell icon lookup even after folder-entry refresh had been moved off the visible path.
+
+### 2026-04-06 - Change 87 (Folder views open from cache immediately with refresh-state indicator)
+
+- Changed folder opening so the UI uses cached folder entries immediately when available instead of waiting for the refresh result first.
+- Added folder refresh state tracking in the backend so folders can be marked as `pending`, `checking`, `checked`, or `disabled`.
+- Folder headers now show a small red dot while the folder contents are still being checked and a small green dot once the folder has been verified.
+- If a folder cache is refreshed by the app-wide background scan while that folder is open, the visible folder view now updates live.
+
 ### 2026-04-06 - Change 86 (Build script uses absolute PyInstaller data paths)
 
 - Fixed a packaging error where PyInstaller could not find `ui`, `assets`, or `VERSION.txt` after the generated `.spec` was moved under `build\spec`.

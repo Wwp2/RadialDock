@@ -7,6 +7,7 @@ Item {
     property string title: "Folder"
     property bool compactMode: false
     property bool loading: false
+    property string refreshStatus: ""
     signal tileActivated(string path, string kind)
 
     function entrySource(entry) {
@@ -65,7 +66,8 @@ Item {
 
         Text {
             id: modeText
-            anchors.right: parent.right
+            anchors.right: refreshDot.left
+            anchors.rightMargin: 8
             anchors.left: backHint.right
             anchors.leftMargin: 12
             anchors.verticalCenter: parent.verticalCenter
@@ -86,6 +88,19 @@ Item {
             font.pixelSize: 9
             verticalAlignment: Text.AlignVCenter
             horizontalAlignment: Text.AlignHCenter
+        }
+
+        Rectangle {
+            id: refreshDot
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: 8
+            height: 8
+            radius: 4
+            visible: folderView.refreshStatus === "checking" || folderView.refreshStatus === "checked"
+            color: folderView.refreshStatus === "checked" ? "#79E28F" : "#E46C6C"
+            border.color: folderView.refreshStatus === "checked" ? "#C9F6D2" : "#FFD0D0"
+            border.width: 1
         }
     }
 

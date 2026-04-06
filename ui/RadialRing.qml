@@ -27,6 +27,7 @@ Item {
     property bool settingsOpen: false
     property bool folderOpen: false
     property bool folderLoading: false
+    property string folderRefreshStatus: ""
     property string currentFolderPath: ""
     property string folderTitle: ""
     property var folderEntries: []
@@ -464,18 +465,34 @@ Item {
         }
         currentFolderPath = folderPath
         folderTitle = titleText || folderPath
-        folderEntries = []
+        folderEntries = appModel.cachedFolderEntries ? appModel.cachedFolderEntries(folderPath) : []
         folderOpen = true
-        if (!appModel.automaticFolderRefresh && appModel.listFolderEntries) {
-            folderEntries = appModel.listFolderEntries(folderPath, false)
+        if (!appModel.automaticFolderRefresh) {
+            folderRefreshStatus = "disabled"
             folderLoading = false
-        } else if (appModel.requestFolderEntries) {
-            folderLoading = true
-            appModel.requestFolderEntries(folderPath, true)
-        } else if (appModel.listFolderEntries) {
-            folderEntries = appModel.listFolderEntries(folderPath, true)
-            folderLoading = false
+            return
         }
+
+        var refreshState = appModel.folderRefreshState
+                         ? appModel.folderRefreshState(folderPath)
+                         : "pending"
+        if (!refreshState || refreshState === "pending") {
+            folderRefreshStatus = "checking"
+            folderLoading = true
+            if (appModel.requestFolderEntries) {
+                appModel.requestFolderEntries(folderPath, true)
+            }
+            return
+        }
+
+        if (refreshState === "checking") {
+            folderRefreshStatus = "checking"
+            folderLoading = true
+            return
+        }
+
+        folderRefreshStatus = "checked"
+        folderLoading = false
     }
 
     function closeFolderView() {
@@ -703,6 +720,7 @@ Item {
     function applyFolderClosed() {
         folderOpen = false
         folderLoading = false
+        folderRefreshStatus = ""
         currentFolderPath = ""
         folderTitle = ""
         folderEntries = []
@@ -735,6 +753,7 @@ Item {
         settingsOpen = false
         folderOpen = false
         folderLoading = false
+        folderRefreshStatus = ""
         currentFolderPath = ""
         folderTitle = ""
         folderEntries = []
@@ -965,6 +984,14 @@ Item {
             }
             ring.folderEntries = entries
             ring.folderLoading = false
+            ring.folderRefreshStatus = "checked"
+        }
+        function onFolderRefreshStateChanged(folderPath, state) {
+            if (ring.currentFolderPath !== folderPath) {
+                return
+            }
+            ring.folderRefreshStatus = state
+            ring.folderLoading = (state === "checking" || state === "pending")
         }
         function onAutomaticItemAlignmentChanged() {
             var nextValue = !!appModel.automaticItemAlignment
@@ -1437,6 +1464,7 @@ Item {
         title: ring.folderTitle
         entries: ring.folderEntries
         loading: ring.folderLoading
+        refreshStatus: ring.folderRefreshStatus
         compactMode: ring.compactListMode
         onTileActivated: function(path, kind) {
             ring.openFolderEntry(path, kind)

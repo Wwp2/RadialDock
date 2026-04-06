@@ -130,8 +130,11 @@ python -m radialdock.app
   - `Launch on startup`
 - Image files use cached thumbnail previews as full-bleed visuals in the main ring and tile-mode folder view.
 - Windows `.lnk` and `.url` shortcuts use Windows shell-aware icon extraction.
+- Non-image icons now return a cheap placeholder first and resolve the real Windows icon in the background, so first folder open is less likely to stall on cold boot.
 - Missing image previews load in the background so folder/menu open stays responsive while thumbnails fill in.
 - Folder views open first and load refreshed contents after, while cached-only mode still opens immediately with no new scan.
+- Folder views now open immediately from cached entries when available, then refresh in the background if needed.
+- Folder headers show a small red dot while contents are still being checked and a green dot once that folder has been verified.
 - Automatic refresh checks run in the background after the UI opens.
 - The app does a hidden warm-up after startup to preload icon sources and pinned folder caches.
 - When the startup message is enabled, the startup help appears every time the radial dock is opened until the user turns it off.
