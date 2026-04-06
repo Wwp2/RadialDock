@@ -2,8 +2,6 @@
 
 RadialDock is a Windows launcher overlay built with PySide6 and Qt Quick. It opens as a radial menu, lets you pin files, folders, apps, and shortcuts, and is designed for fast mouse-first launching.
 
-Current documented version: `0.12.4`
-
 ## What It Does
 
 - Opens the dock with a global hotkey near the cursor
@@ -126,6 +124,7 @@ python -m radialdock.app
   - `Restart App` and `Quit App`
   - single-file backup export/import
   - `Automatic Item Alignement`
+  - `Show file extensions`
   - `Close after launch`
   - capture-based shortcut picking
   - `Launch on startup`

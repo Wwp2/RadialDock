@@ -16,6 +16,19 @@
 
 ## Change Log
 
+### 2026-04-06 - Change 86 (Build script uses absolute PyInstaller data paths)
+
+- Fixed a packaging error where PyInstaller could not find `ui`, `assets`, or `VERSION.txt` after the generated `.spec` was moved under `build\spec`.
+- `build.ps1` now resolves the source tree, entry script, UI directory, assets directory, and version file to absolute paths before invoking PyInstaller.
+- This keeps the cleaned-up `build\spec` flow while avoiding relative-path breakage in the generated spec.
+
+### 2026-04-06 - Change 85 (Optional file extension display in dock labels)
+
+- Added a persisted `Show file extensions` setting under the visual dock settings.
+- By default, file and shortcut labels now hide endings like `.lnk`, `.url`, and other file extensions in the dock UI.
+- Turning the setting on restores full labels with extensions.
+- This is a display-only change: stored item labels and paths are not rewritten.
+
 ### 2026-04-06 - Change 84 (Build script now bootstraps and uses local .venv)
 
 - Updated `build.ps1` so it no longer assumes `.venv` already exists.

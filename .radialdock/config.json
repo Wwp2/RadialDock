@@ -1,7 +1,11 @@
 {
   "hotkey": "Ctrl+Space",
+  "startup_message_enabled": true,
   "automatic_icon_refresh": true,
   "automatic_folder_refresh": true,
+  "close_after_launch": true,
+  "automatic_item_alignment": true,
+  "show_file_extensions": true,
   "animation_speed_scale": 0.2,
   "animations_enabled": true,
   "folder_compact_threshold": 50,
@@ -11,49 +15,65 @@
       "path": "",
       "label": "Steam",
       "kind": "app",
-      "color": "#FF7B6C"
+      "color": "#FF7B6C",
+      "angle": 0.0,
+      "children": []
     },
     {
       "path": "",
       "label": "Discord",
       "kind": "app",
-      "color": "#8D9BFF"
+      "color": "#8D9BFF",
+      "angle": 0.0,
+      "children": []
     },
     {
       "path": "",
       "label": "Downloads",
       "kind": "folder",
-      "color": "#63D5C2"
+      "color": "#63D5C2",
+      "angle": 0.0,
+      "children": []
     },
     {
       "path": "",
       "label": "Photos",
       "kind": "folder",
-      "color": "#F9B26E"
+      "color": "#F9B26E",
+      "angle": 0.0,
+      "children": []
     },
     {
       "path": "",
       "label": "VS Code",
       "kind": "app",
-      "color": "#62B9FF"
+      "color": "#62B9FF",
+      "angle": 0.0,
+      "children": []
     },
     {
       "path": "",
       "label": "Music",
       "kind": "folder",
-      "color": "#DD8DFF"
+      "color": "#DD8DFF",
+      "angle": 0.0,
+      "children": []
     },
     {
       "path": "",
       "label": "Maps",
       "kind": "app",
-      "color": "#83E37B"
+      "color": "#83E37B",
+      "angle": 0.0,
+      "children": []
     },
     {
       "path": "",
       "label": "Docs",
       "kind": "folder",
-      "color": "#F0DF87"
+      "color": "#F0DF87",
+      "angle": 0.0,
+      "children": []
     }
   ]
 }

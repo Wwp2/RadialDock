@@ -124,6 +124,7 @@ class Settings:
     automatic_folder_refresh: bool = True
     close_after_launch: bool = DEFAULT_CLOSE_AFTER_LAUNCH
     automatic_item_alignment: bool = True
+    show_file_extensions: bool = False
     animation_speed_scale: float = DEFAULT_ANIMATION_SPEED_SCALE
     animations_enabled: bool = DEFAULT_ANIMATIONS_ENABLED
     folder_compact_threshold: int = DEFAULT_FOLDER_COMPACT_THRESHOLD
@@ -181,6 +182,7 @@ class AppModel(QObject):
     automaticFolderRefreshChanged = Signal()
     closeAfterLaunchChanged = Signal()
     automaticItemAlignmentChanged = Signal()
+    showFileExtensionsChanged = Signal()
     folderEntriesReady = Signal(str, "QVariantList")
     _folderEntriesResolved = Signal(str, object)
     _refreshResolved = Signal(int, object, object, bool)
@@ -238,6 +240,7 @@ class AppModel(QObject):
                 ),
                 close_after_launch=bool(raw.get("close_after_launch", DEFAULT_CLOSE_AFTER_LAUNCH)),
                 automatic_item_alignment=bool(raw.get("automatic_item_alignment", True)),
+                show_file_extensions=bool(raw.get("show_file_extensions", False)),
                 animation_speed_scale=self._sanitize_animation_speed(
                     raw.get("animation_speed_scale", DEFAULT_ANIMATION_SPEED_SCALE)
                 ),
@@ -265,6 +268,7 @@ class AppModel(QObject):
         self.automaticFolderRefreshChanged.emit()
         self.closeAfterLaunchChanged.emit()
         self.automaticItemAlignmentChanged.emit()
+        self.showFileExtensionsChanged.emit()
         self.animationSpeedScaleChanged.emit()
         self.animationsEnabledChanged.emit()
         self.folderCompactThresholdChanged.emit()
@@ -454,6 +458,17 @@ class AppModel(QObject):
         self._save_settings(self.settings)
         self.automaticItemAlignmentChanged.emit()
 
+    def get_show_file_extensions(self) -> bool:
+        return self.settings.show_file_extensions
+
+    def set_show_file_extensions(self, value: bool) -> None:
+        normalized = bool(value)
+        if self.settings.show_file_extensions == normalized:
+            return
+        self.settings.show_file_extensions = normalized
+        self._save_settings(self.settings)
+        self.showFileExtensionsChanged.emit()
+
     def set_animation_speed_scale(self, value: float) -> None:
         sanitized = self._sanitize_animation_speed(value)
         if self.settings.animation_speed_scale == sanitized:
@@ -513,6 +528,7 @@ class AppModel(QObject):
         self.settings.automatic_folder_refresh = True
         self.settings.close_after_launch = DEFAULT_CLOSE_AFTER_LAUNCH
         self.settings.automatic_item_alignment = True
+        self.settings.show_file_extensions = False
         self.settings.hotkey = "Ctrl+Space"
         self.settings.animation_speed_scale = DEFAULT_ANIMATION_SPEED_SCALE
         self.settings.animations_enabled = DEFAULT_ANIMATIONS_ENABLED
@@ -524,6 +540,7 @@ class AppModel(QObject):
         self.automaticFolderRefreshChanged.emit()
         self.closeAfterLaunchChanged.emit()
         self.automaticItemAlignmentChanged.emit()
+        self.showFileExtensionsChanged.emit()
         self.animationSpeedScaleChanged.emit()
         self.animationsEnabledChanged.emit()
         self.folderCompactThresholdChanged.emit()
@@ -540,6 +557,7 @@ class AppModel(QObject):
                 "automatic_folder_refresh": self.settings.automatic_folder_refresh,
                 "close_after_launch": self.settings.close_after_launch,
                 "automatic_item_alignment": self.settings.automatic_item_alignment,
+                "show_file_extensions": self.settings.show_file_extensions,
                 "animation_speed_scale": self.settings.animation_speed_scale,
                 "animations_enabled": self.settings.animations_enabled,
                 "folder_compact_threshold": self.settings.folder_compact_threshold,
@@ -578,6 +596,9 @@ class AppModel(QObject):
         self.settings.automatic_item_alignment = bool(
             settings_payload.get("automatic_item_alignment", self.settings.automatic_item_alignment)
         )
+        self.settings.show_file_extensions = bool(
+            settings_payload.get("show_file_extensions", self.settings.show_file_extensions)
+        )
         self.settings.animation_speed_scale = self._sanitize_animation_speed(
             settings_payload.get("animation_speed_scale", self.settings.animation_speed_scale)
         )
@@ -609,6 +630,32 @@ class AppModel(QObject):
         if ring_changed:
             return True, "Settings and dock items imported."
         return True, "Settings imported."
+
+    @Slot(str, str, str, result=str)
+    def displayLabel(self, label: str, path: str, kind: str) -> str:
+        text = str(label or "").strip()
+        normalized_kind = str(kind or "file").lower()
+        if not text:
+            text = Path(path).name if path else "Item"
+
+        if self.settings.show_file_extensions:
+            return text
+
+        if normalized_kind in {"folder", "group"}:
+            return text
+
+        try:
+            suffix = Path(path).suffix
+        except (TypeError, ValueError):
+            suffix = ""
+
+        if not suffix:
+            return text
+
+        if text.lower().endswith(suffix.lower()):
+            trimmed = text[: -len(suffix)].rstrip()
+            return trimmed or text
+        return text
 
     @Slot(str, str, str, result=str)
     def iconDataUrl(self, path: str, kind: str, label: str) -> str:
@@ -1287,6 +1334,13 @@ class AppModel(QObject):
         get_automatic_item_alignment,
         set_automatic_item_alignment,
         notify=automaticItemAlignmentChanged,
+    )
+
+    showFileExtensions = Property(
+        bool,
+        get_show_file_extensions,
+        set_show_file_extensions,
+        notify=showFileExtensionsChanged,
     )
 
     ringItems = Property(

@@ -5,6 +5,10 @@ $VenvDir = Join-Path $PSScriptRoot ".venv"
 $PythonExe = Join-Path $VenvDir "Scripts\python.exe"
 $RequirementsFile = Join-Path $PSScriptRoot "requirements.txt"
 $VersionFile = Join-Path $PSScriptRoot "VERSION.txt"
+$SourceDir = Join-Path $PSScriptRoot "src"
+$UiDir = Join-Path $PSScriptRoot "ui"
+$AssetsDir = Join-Path $PSScriptRoot "assets"
+$EntryScript = Join-Path $SourceDir "radialdock\app.py"
 $BuildRoot = Join-Path $PSScriptRoot "build"
 $SpecDir = Join-Path $BuildRoot "spec"
 $WorkDir = Join-Path $BuildRoot "pyinstaller"
@@ -48,6 +52,18 @@ if (-not (Test-Path $RequirementsFile)) {
     throw "requirements.txt was not found at $RequirementsFile."
 }
 
+if (-not (Test-Path $UiDir)) {
+    throw "ui directory was not found at $UiDir."
+}
+
+if (-not (Test-Path $AssetsDir)) {
+    throw "assets directory was not found at $AssetsDir."
+}
+
+if (-not (Test-Path $EntryScript)) {
+    throw "Entry script was not found at $EntryScript."
+}
+
 Write-Host "Installing build dependencies into .venv..."
 Invoke-CheckedPython -CommandParts @($PythonExe, "-m", "pip", "install", "-r", $RequirementsFile)
 Invoke-CheckedPython -CommandParts @($PythonExe, "-m", "pip", "install", "-e", $PSScriptRoot)
@@ -68,6 +84,11 @@ if ($Version -notmatch '^[0-9A-Za-z][0-9A-Za-z._-]*$') {
 $InstallerBaseName = "RadialDockInstaller-$Version"
 $InstallerExe = Join-Path $PSScriptRoot ("dist\" + $InstallerBaseName + ".exe")
 $GeneratedSpec = Join-Path $SpecDir ($InstallerBaseName + ".spec")
+$ResolvedSourceDir = (Resolve-Path $SourceDir).Path
+$ResolvedUiDir = (Resolve-Path $UiDir).Path
+$ResolvedAssetsDir = (Resolve-Path $AssetsDir).Path
+$ResolvedVersionFile = (Resolve-Path $VersionFile).Path
+$ResolvedEntryScript = (Resolve-Path $EntryScript).Path
 
 New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $SpecDir | Out-Null
@@ -97,11 +118,11 @@ if (Test-Path $InstallerExe) {
     --name $InstallerBaseName `
     --specpath $SpecDir `
     --workpath $WorkDir `
-    --paths "src" `
-    --add-data "ui;ui" `
-    --add-data "assets;assets" `
-    --add-data "VERSION.txt;." `
-    "src/radialdock/app.py"
+    --paths $ResolvedSourceDir `
+    --add-data "${ResolvedUiDir};ui" `
+    --add-data "${ResolvedAssetsDir};assets" `
+    --add-data "${ResolvedVersionFile};." `
+    $ResolvedEntryScript
 
 if ($LASTEXITCODE -ne 0) {
     throw "PyInstaller failed with exit code $LASTEXITCODE."

@@ -21,6 +21,18 @@ Item {
         return entry.icon || ""
     }
 
+    function entryLabel(entry) {
+        if (typeof appModel !== "undefined" && appModel && appModel.displayLabel) {
+            var _ = appModel.showFileExtensions
+            return appModel.displayLabel(
+                entry.label || "Item",
+                entry.path || "",
+                entry.kind || "file"
+            )
+        }
+        return entry.label || "Item"
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: 16
@@ -89,7 +101,7 @@ Item {
         cellHeight: 104
         clip: true
         delegate: Tile {
-            text: modelData.label || "Item"
+            text: folderView.entryLabel(modelData)
             imageSource: modelData.icon || ""
             itemPath: modelData.path || ""
             itemKind: modelData.kind || "file"
@@ -157,7 +169,7 @@ Item {
                 anchors.right: parent.right
                 anchors.rightMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
-                text: modelData.label || "Item"
+                text: folderView.entryLabel(modelData)
                 color: "#EAF4FF"
                 font.pixelSize: 10
                 elide: Text.ElideRight

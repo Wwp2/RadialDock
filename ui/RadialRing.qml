@@ -68,7 +68,7 @@ Item {
                                            ? 460
                                            : Math.max(180, folderGridRows * 104 + 58)
     readonly property int settingsPanelWidth: 420
-    readonly property int settingsPanelHeight: 950
+    readonly property int settingsPanelHeight: 1000
     readonly property int groupPanelSize: Math.max(180, Math.min(280, 132 + (Math.max(groupEntries.length, 1) * 18)))
     readonly property real groupOrbitRadius: Math.max(44, Math.min(92, groupPanelSize * 0.28))
     readonly property int preferredStageWidth: settingsOpen
@@ -150,6 +150,14 @@ Item {
             }
         }
         return false
+    }
+
+    function displayLabel(label, path, kind) {
+        if (typeof appModel !== "undefined" && appModel && appModel.displayLabel) {
+            var _ = appModel.showFileExtensions
+            return appModel.displayLabel(label || "", path || "", kind || "file")
+        }
+        return label || "Item"
     }
 
     function clampInt(value, minValue, maxValue) {
@@ -1144,7 +1152,7 @@ Item {
                     anchors.bottomMargin: 3
                     anchors.leftMargin: 4
                     anchors.rightMargin: 4
-                    text: label
+                    text: ring.displayLabel(label, path, kind)
                     color: "#F7FBFF"
                     font.pixelSize: 8
                     horizontalAlignment: Text.AlignHCenter
@@ -1196,7 +1204,7 @@ Item {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: parent.width
-                        text: label
+                        text: ring.displayLabel(label, path, kind)
                         color: "#F1F8FF"
                         font.pixelSize: 9
                         font.bold: true
@@ -1226,7 +1234,7 @@ Item {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: parent.width
-                        text: label
+                        text: ring.displayLabel(label, path, kind)
                         color: "#E8F8FF"
                         font.pixelSize: 9
                         horizontalAlignment: Text.AlignHCenter
@@ -1560,7 +1568,7 @@ Item {
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             width: parent.width
-                            text: entry.label || "Item"
+                            text: ring.displayLabel(entry.label || "Item", entry.path || "", entry.kind || "file")
                             color: "#EAF4FF"
                             font.pixelSize: 8
                             horizontalAlignment: Text.AlignHCenter
