@@ -16,6 +16,32 @@
 
 ## Change Log
 
+### 2026-04-06 - Change 84 (Build script now bootstraps and uses local .venv)
+
+- Updated `build.ps1` so it no longer assumes `.venv` already exists.
+- The build now creates `.venv` automatically if it is missing, using a local Python launcher from `py` or `python`.
+- Before packaging, the build installs `requirements.txt` and the local editable package into that `.venv`.
+- This keeps build dependencies out of the user's global Python installation while making the build flow more self-contained.
+
+### 2026-04-06 - Change 83 (README reordered for clearer build and usage flow)
+
+- Reorganized `README.md` so it starts with a short explanation of what RadialDock is.
+- Moved installer build and `rebuild_reinstall.sh` usage above the longer manual source-run commands.
+- Moved the longer feature and status/reference sections lower in the document so the primary "how to use" path is easier to follow.
+
+### 2026-04-06 - Change 82 (Build script stops leaving versioned .spec files in repo root)
+
+- Cleaned up `build.ps1` so PyInstaller-generated versioned installer `.spec` files are no longer left in the repo root.
+- The build now routes generated spec/work files through the `build` directory and removes the generated versioned installer `.spec` after the build finishes.
+- Legacy root-level `RadialDockInstaller-*.spec` files are also cleaned up automatically on build.
+
+### 2026-04-06 - Change 81 (Non-interactive build version from VERSION.txt)
+
+- Removed the interactive version prompt from `build.ps1`.
+- The build script now reads the version directly from `VERSION.txt` and does not rewrite that file.
+- If `VERSION.txt` is missing or empty, the build now fails fast with a clear error.
+- This makes local builds simpler and also matches the intended future CI/signing workflow better.
+
 ### 2026-03-11 - Change 80 (Version bump to 0.12.3 + decorative ring alignment)
 
 - Confirmed the official documented version is now `0.12.3`.
