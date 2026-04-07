@@ -974,3 +974,11 @@
 - Updated `ui/Main.qml` to show the folder view in a separate frameless tool window centered on the main dock position.
 - The main dock stage now fades out while the separate folder scene fades in, instead of resizing or morphing the main dock window.
 - Returning from a folder now fades out the separate folder scene and then replays the normal main dock reveal animation.
+
+### 2026-04-07 - Change 95 (Folder return now keeps the main dock hidden until the shared reveal starts)
+
+- Replaced the old completed folder-scene plan in `DevPlans/` with `DevPlans/folder_return_reveal_plan.md`.
+- Updated `ui/Main.qml` to decouple main dock scene visibility from `folderSceneVisible`.
+- Added explicit `mainSceneVisible` state so the dock remains hidden while the folder scene fades out.
+- The main dock scene is now only shown again through `playMainRingReveal()`, which aligns folder return with the same reveal path used by normal dock open.
+- Disabled the stage opacity behavior during the active reveal so there is no extra fade layer on top of the shared dock opening animation.

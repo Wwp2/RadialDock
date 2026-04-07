@@ -38,6 +38,7 @@ Window {
     property bool mainRevealActive: false
     property bool snapBackdropResize: false
     property bool startupMessageVisible: false
+    property bool mainSceneVisible: true
     property bool folderSceneVisible: false
     property bool folderSceneReturningToMain: false
     property real folderSceneCenterX: 0
@@ -76,6 +77,7 @@ Window {
         folderSceneCenterX = x + (width / 2)
         folderSceneCenterY = y + (height / 2)
         positionFolderScene()
+        mainSceneVisible = false
         folderSceneVisible = true
     }
 
@@ -107,6 +109,7 @@ Window {
         closing = false
         overlayOpen = true
         mainRevealActive = true
+        mainSceneVisible = true
         closeAnim.stop()
         opacity = 0.0
         openProgress = 0.0
@@ -197,6 +200,7 @@ Window {
         }
         folderSceneVisible = false
         folderSceneReturningToMain = false
+        mainSceneVisible = true
         closing = true
         overlayOpen = false
         mainRevealActive = false
@@ -292,6 +296,7 @@ Window {
         onFinished: {
             overlay.visible = false
             overlay.closing = false
+            overlay.mainSceneVisible = true
             overlay.folderSceneVisible = false
             overlay.folderSceneReturningToMain = false
             if (ringWidget) {
@@ -363,13 +368,14 @@ Window {
         anchors.centerIn: parent
         width: overlay.targetStageWidth
         height: overlay.targetStageHeight
-        opacity: overlay.folderSceneVisible ? 0.0 : 1.0
+        opacity: overlay.mainSceneVisible ? 1.0 : 0.0
         property real targetBackdropWidth: width
         property real targetBackdropHeight: height
         property real backdropVisualWidth: targetBackdropWidth
         property real backdropVisualHeight: targetBackdropHeight
 
         Behavior on opacity {
+            enabled: overlay.animationsEnabled && !(overlay.mainSceneVisible && overlay.mainRevealActive)
             NumberAnimation {
                 duration: overlay.animDuration(120)
                 easing.type: Easing.OutCubic
