@@ -8,6 +8,7 @@ Window {
     property int baseStageWidth: 390
     property int baseStageHeight: 390
     property int backdropResizeBaseDuration: 600
+    property int folderBackdropKickoffDelay: 16
     property real animationSpeedScale: (typeof appModel !== "undefined" && appModel && appModel.animationSpeedScale)
                                        ? appModel.animationSpeedScale
                                        : 0.2
@@ -49,6 +50,7 @@ Window {
     property real folderBackdropWidth: baseStageWidth
     property real folderBackdropHeight: baseStageHeight
     property real folderBackdropOpacity: 0.0
+    property bool folderBackdropExpanding: false
 
     function animDuration(baseDuration) {
         if (!animationsEnabled) {
@@ -87,6 +89,9 @@ Window {
     function showFolderBackdrop() {
         var startWidth = Math.max(1, backdrop.width)
         var startHeight = Math.max(1, backdrop.height)
+        folderBackdropExpandAnim.stop()
+        folderBackdropExpandTimer.stop()
+        folderBackdropExpanding = animationsEnabled
         folderBackdropX = Math.round(folderSceneCenterX - (startWidth / 2))
         folderBackdropY = Math.round(folderSceneCenterY - (startHeight / 2))
         folderBackdropWidth = startWidth
@@ -96,12 +101,15 @@ Window {
         if (animationsEnabled) {
             folderBackdropExpandTimer.restart()
         } else {
+            folderBackdropExpanding = false
             syncFolderBackdropToScene()
         }
     }
 
     function hideFolderBackdrop() {
+        folderBackdropExpandAnim.stop()
         folderBackdropExpandTimer.stop()
+        folderBackdropExpanding = false
         folderBackdropVisible = false
         folderBackdropOpacity = 0.0
     }
@@ -358,9 +366,54 @@ Window {
 
     Timer {
         id: folderBackdropExpandTimer
-        interval: 0
+        interval: overlay.folderBackdropKickoffDelay
         repeat: false
         onTriggered: {
+            folderBackdropXAnim.from = overlay.folderBackdropX
+            folderBackdropXAnim.to = folderSceneWindow.x
+            folderBackdropYAnim.from = overlay.folderBackdropY
+            folderBackdropYAnim.to = folderSceneWindow.y
+            folderBackdropWidthAnim.from = overlay.folderBackdropWidth
+            folderBackdropWidthAnim.to = folderSceneWindow.width
+            folderBackdropHeightAnim.from = overlay.folderBackdropHeight
+            folderBackdropHeightAnim.to = folderSceneWindow.height
+            folderBackdropExpandAnim.restart()
+            folderSceneWindow.raise()
+        }
+    }
+
+    ParallelAnimation {
+        id: folderBackdropExpandAnim
+        NumberAnimation {
+            id: folderBackdropXAnim
+            target: overlay
+            property: "folderBackdropX"
+            duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            id: folderBackdropYAnim
+            target: overlay
+            property: "folderBackdropY"
+            duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            id: folderBackdropWidthAnim
+            target: overlay
+            property: "folderBackdropWidth"
+            duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            id: folderBackdropHeightAnim
+            target: overlay
+            property: "folderBackdropHeight"
+            duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
+            easing.type: Easing.OutCubic
+        }
+        onFinished: {
+            overlay.folderBackdropExpanding = false
             overlay.syncFolderBackdropToScene()
             folderSceneWindow.raise()
         }
@@ -378,34 +431,6 @@ Window {
         color: "transparent"
         flags: Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint | Qt.WindowTransparentForInput
 
-        Behavior on x {
-            enabled: overlay.animationsEnabled
-            NumberAnimation {
-                duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
-                easing.type: Easing.OutCubic
-            }
-        }
-        Behavior on y {
-            enabled: overlay.animationsEnabled
-            NumberAnimation {
-                duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
-                easing.type: Easing.OutCubic
-            }
-        }
-        Behavior on width {
-            enabled: overlay.animationsEnabled
-            NumberAnimation {
-                duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
-                easing.type: Easing.OutCubic
-            }
-        }
-        Behavior on height {
-            enabled: overlay.animationsEnabled
-            NumberAnimation {
-                duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
-                easing.type: Easing.OutCubic
-            }
-        }
         Behavior on opacity {
             NumberAnimation {
                 duration: overlay.animDuration(130)
@@ -437,13 +462,13 @@ Window {
 
         onWidthChanged: {
             overlay.positionFolderScene()
-            if (overlay.folderBackdropVisible) {
+            if (overlay.folderBackdropVisible && !overlay.folderBackdropExpanding) {
                 overlay.syncFolderBackdropToScene()
             }
         }
         onHeightChanged: {
             overlay.positionFolderScene()
-            if (overlay.folderBackdropVisible) {
+            if (overlay.folderBackdropVisible && !overlay.folderBackdropExpanding) {
                 overlay.syncFolderBackdropToScene()
             }
         }

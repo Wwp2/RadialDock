@@ -1004,3 +1004,22 @@
   - remains visible underneath the folder scene while the folder is open
 - The decorative underlay no longer delays, gates, or owns any folder content.
 - Folder close/back now hides that passive underlay again without changing the stable folder return path.
+
+### 2026-04-07 - Change 98 (Folder backdrop expansion now reliably replays when reopening the same folder)
+
+- Updated `ui/Main.qml` so the passive folder backdrop snaps back to the dock footprint before each new folder-open expansion.
+- Added explicit `folderBackdropSnapGeometry` state to temporarily disable geometry behaviors while resetting the backdrop start state.
+- This avoids the previous case where reopening the same folder could skip the visible expansion because the backdrop never got a clean snapped starting geometry before animating again.
+
+### 2026-04-07 - Change 99 (Folder backdrop target expansion now waits one frame before animating)
+
+- Updated `ui/Main.qml` so the passive folder backdrop no longer applies its target geometry in the same event cycle it becomes visible.
+- Added `folderBackdropKickoffDelay` and changed the expansion kickoff timer to wait one frame before animating toward the folder scene geometry.
+- This gives the snapped dock-sized start state a real rendered frame, which should let the expansion replay consistently across repeated folder opens in the same session.
+
+### 2026-04-07 - Change 100 (Folder backdrop expansion now uses an explicit restartable animation)
+
+- Replaced the passive folder backdrop's geometry `Behavior` path in `ui/Main.qml` with an explicit `ParallelAnimation`.
+- The backdrop now restarts its `x`, `y`, `width`, and `height` expansion animation directly on each folder open, instead of relying on implicit behavior changes.
+- Added `folderBackdropExpanding` state so folder-scene resize updates do not fight the backdrop while that explicit animation is active.
+- This should make the expansion deterministic across repeated folder opens in the same session.
