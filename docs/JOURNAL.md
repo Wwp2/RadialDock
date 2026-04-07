@@ -1046,3 +1046,18 @@
 - Audited the folder backdrop motion and confirmed the code was not using faster durations for the left/top sides.
 - Updated `ui/Main.qml` so the decorative backdrop now animates around a center point plus size, instead of independently animating window `x/y` and `width/height`.
 - This makes the expansion mathematically symmetrical around the backdrop center and should remove the visual impression that one side is expanding faster than the other.
+
+### 2026-04-07 - Change 105 (Restored true background icon resolution for instant folder-open behavior)
+
+- Audited the regression between `b9dc6dd` and `b6930b1` and confirmed the break was in `src/radialdock/model.py`.
+- The main-thread queued icon processor introduced in `b6930b1` has been removed.
+- Restored the worker-thread non-image icon flow so:
+  - folder views still open immediately from cached entries
+  - non-image items return cheap placeholders first
+  - real Windows icons are resolved in the background and swapped in later through `previewVersion`
+- Restored the background-safe icon data-url helpers for:
+  - normal shell icons
+  - `.lnk` shortcut icons
+  - `.url` shortcut icons
+  - custom icon locations and resource extraction
+- Kept the current image thumbnail path unchanged.

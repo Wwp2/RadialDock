@@ -6,7 +6,6 @@ import json
 import os
 import sys
 import threading
-from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from ctypes import wintypes
 from dataclasses import asdict, dataclass, field
@@ -188,6 +187,7 @@ class AppModel(QObject):
     folderEntriesReady = Signal(str, "QVariantList")
     _folderEntriesResolved = Signal(str, object)
     _refreshResolved = Signal(int, object, object, bool)
+    _iconResolved = Signal(str, str)
     previewVersionChanged = Signal()
     ringItemsChanged = Signal()
     animationSpeedScaleChanged = Signal()
@@ -208,7 +208,6 @@ class AppModel(QObject):
         self._pending_previews: set[tuple[str, tuple[int, int]]] = set()
         self._pending_folder_requests: set[str] = set()
         self._pending_icon_requests: set[str] = set()
-        self._queued_icon_requests: deque[tuple[str, str, str, str]] = deque()
         self._folder_refresh_states: dict[str, str] = {}
         self._preview_lock = threading.Lock()
         self._folderEntriesResolved.connect(
@@ -217,6 +216,10 @@ class AppModel(QObject):
         )
         self._refreshResolved.connect(
             self._handle_refresh_resolved,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self._iconResolved.connect(
+            self._handle_icon_resolved,
             Qt.ConnectionType.QueuedConnection,
         )
         self._app_version = resolve_app_version()
@@ -775,31 +778,24 @@ class AppModel(QObject):
             if cache_key in self._pending_icon_requests:
                 return
             self._pending_icon_requests.add(cache_key)
-            self._queued_icon_requests.append((path, kind, label, cache_key))
 
-        QMetaObject.invokeMethod(self, "_process_next_queued_icon", Qt.ConnectionType.QueuedConnection)
+        def worker() -> None:
+            try:
+                data_url = self._resolve_icon_data_url(path, kind)
+                if data_url:
+                    self._iconResolved.emit(cache_key, data_url)
+            finally:
+                with self._preview_lock:
+                    self._pending_icon_requests.discard(cache_key)
 
-    @Slot()
-    def _process_next_queued_icon(self) -> None:
-        with self._preview_lock:
-            if not self._queued_icon_requests:
-                return
-            path, kind, label, cache_key = self._queued_icon_requests.popleft()
+        self._preview_executor.submit(worker)
 
-        try:
-            icon = self._icon_for_item(path=path, kind=kind)
-            pixmap = icon.pixmap(64, 64)
-            if pixmap.isNull():
-                pixmap = self._fallback_pixmap(label)
-            self._icon_cache[cache_key] = self._pixmap_to_data_url(pixmap)
-        finally:
-            with self._preview_lock:
-                self._pending_icon_requests.discard(cache_key)
-                has_more = bool(self._queued_icon_requests)
-
+    @Slot(str, str)
+    def _handle_icon_resolved(self, cache_key: str, data_url: str) -> None:
+        if not cache_key or not data_url:
+            return
+        self._icon_cache[cache_key] = data_url
         self._bump_preview_version()
-        if has_more:
-            QMetaObject.invokeMethod(self, "_process_next_queued_icon", Qt.ConnectionType.QueuedConnection)
 
     @Slot(str, bool)
     def requestFolderEntries(self, folder_path: str, refresh_on_open: bool) -> None:
@@ -852,6 +848,51 @@ class AppModel(QObject):
 
         self._set_folder_refresh_state(folder_path, "checked")
         self.folderEntriesReady.emit(folder_path, normalized_entries)
+
+    def _resolve_icon_data_url(self, path: str, kind: str) -> str:
+        normalized_kind = (kind or "").lower()
+        suffix = Path(path).suffix.lower() if path else ""
+
+        if path and (normalized_kind == "shortcut" or suffix in {".lnk", ".url"}):
+            shortcut_data = self._shortcut_icon_data_url(path)
+            if shortcut_data:
+                return shortcut_data
+
+        if path:
+            shell_data = self._shell_icon_data_url_for_path(path)
+            if shell_data:
+                return shell_data
+
+        return ""
+
+    def _shortcut_icon_data_url(self, shortcut_path: str) -> str:
+        suffix = Path(shortcut_path).suffix.lower()
+        if suffix == ".url":
+            return self._url_shortcut_icon_data_url(shortcut_path)
+
+        icon_path, icon_index, target_path = self._read_shortcut_metadata(shortcut_path)
+
+        if icon_path:
+            custom_icon = self._icon_location_data_url(icon_path, icon_index)
+            if custom_icon:
+                return custom_icon
+
+        if target_path:
+            target_icon = self._shell_icon_data_url_for_path(target_path)
+            if target_icon:
+                return target_icon
+
+        return self._shell_icon_data_url_for_path(shortcut_path)
+
+    def _url_shortcut_icon_data_url(self, url_path: str) -> str:
+        icon_path, icon_index = self._read_url_shortcut_metadata(url_path)
+
+        if icon_path:
+            custom_icon = self._icon_location_data_url(icon_path, icon_index)
+            if custom_icon:
+                return custom_icon
+
+        return self._shell_icon_data_url_for_path(url_path)
 
     def _icon_for_item(self, path: str, kind: str) -> QIcon:
         normalized_kind = (kind or "").lower()
@@ -976,6 +1017,28 @@ class AppModel(QObject):
 
         return icon_path, icon_index
 
+    def _icon_location_data_url(self, icon_path: str, icon_index: int) -> str:
+        if not icon_path:
+            return ""
+
+        candidate = Path(icon_path)
+        lower_path = icon_path.lower()
+
+        if candidate.exists() and lower_path.endswith(".ico"):
+            image = QImage(str(candidate))
+            if not image.isNull():
+                return self._qimage_to_data_url(image)
+
+        if candidate.exists() and lower_path.endswith((".exe", ".dll", ".icl", ".cpl", ".mun")):
+            extracted = self._extract_icon_resource_data_url(str(candidate), icon_index)
+            if extracted:
+                return extracted
+
+        if candidate.exists():
+            return self._shell_icon_data_url_for_path(str(candidate))
+
+        return ""
+
     def _icon_from_icon_location(self, icon_path: str, icon_index: int) -> QIcon:
         if not icon_path:
             return QIcon()
@@ -1029,6 +1092,29 @@ class AppModel(QObject):
             for handle in handles:
                 ctypes.windll.user32.DestroyIcon(handle)
 
+    def _extract_icon_resource_data_url(self, icon_path: str, icon_index: int) -> str:
+        large_icons = (wintypes.HICON * 1)()
+        small_icons = (wintypes.HICON * 1)()
+        extracted = ctypes.windll.shell32.ExtractIconExW(
+            icon_path,
+            icon_index,
+            large_icons,
+            small_icons,
+            1,
+        )
+        if extracted <= 0:
+            return ""
+
+        handles = [handle for handle in (large_icons[0], small_icons[0]) if handle]
+        if not handles:
+            return ""
+
+        try:
+            return self._hicon_to_data_url(handles[0])
+        finally:
+            for handle in handles:
+                ctypes.windll.user32.DestroyIcon(handle)
+
     def _shell_icon_for_path(self, path: str) -> QIcon:
         if not path:
             return QIcon()
@@ -1055,6 +1141,26 @@ class AppModel(QObject):
         finally:
             ctypes.windll.user32.DestroyIcon(file_info.hIcon)
 
+    def _shell_icon_data_url_for_path(self, path: str) -> str:
+        if not path:
+            return ""
+
+        file_info = SHFILEINFOW()
+        result = ctypes.windll.shell32.SHGetFileInfoW(
+            str(path),
+            0,
+            ctypes.byref(file_info),
+            ctypes.sizeof(file_info),
+            SHGFI_ICON | SHGFI_LARGEICON,
+        )
+        if not result or not file_info.hIcon:
+            return ""
+
+        try:
+            return self._hicon_to_data_url(file_info.hIcon)
+        finally:
+            ctypes.windll.user32.DestroyIcon(file_info.hIcon)
+
     def _pixmap_to_data_url(self, pixmap: QPixmap) -> str:
         payload = QByteArray()
         buffer = QBuffer(payload)
@@ -1062,6 +1168,23 @@ class AppModel(QObject):
         pixmap.save(buffer, "PNG")
         encoded = bytes(payload.toBase64()).decode("ascii")
         return f"data:image/png;base64,{encoded}"
+
+    def _qimage_to_data_url(self, image: QImage) -> str:
+        payload = QByteArray()
+        buffer = QBuffer(payload)
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        image.save(buffer, "PNG")
+        encoded = bytes(payload.toBase64()).decode("ascii")
+        return f"data:image/png;base64,{encoded}"
+
+    def _hicon_to_data_url(self, icon_handle: wintypes.HICON) -> str:
+        if not icon_handle:
+            return ""
+
+        image = QImage.fromHICON(icon_handle)
+        if image.isNull():
+            return ""
+        return self._qimage_to_data_url(image)
 
     def _fallback_pixmap(self, label: str) -> QPixmap:
         pixmap = QPixmap(64, 64)
