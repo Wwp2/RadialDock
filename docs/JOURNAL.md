@@ -1035,3 +1035,14 @@
 - Updated `ui/Main.qml` so the decorative folder backdrop now starts from a small circle instead of the full main dock backdrop footprint.
 - Added `folderBackdropStartDiameter` in `ui/Main.qml` and wired it to `coreButtonDiameter` in `ui/RadialRing.qml`.
 - The start of the folder expansion now matches the center button size, which avoids the awkward "contracting" look when opening smaller folders.
+
+### 2026-04-07 - Change 103 (Folder backdrop start circle now uses the final backdrop center)
+
+- Updated `ui/Main.qml` so the folder backdrop start circle is now centered from the final clamped backdrop target geometry instead of the raw main overlay center.
+- This keeps the decorative expansion centered on the same visual axis as the folder view and its backdrop endpoint, which should remove the subtle uneven expansion feel.
+
+### 2026-04-07 - Change 104 (Folder backdrop now animates by center point plus size)
+
+- Audited the folder backdrop motion and confirmed the code was not using faster durations for the left/top sides.
+- Updated `ui/Main.qml` so the decorative backdrop now animates around a center point plus size, instead of independently animating window `x/y` and `width/height`.
+- This makes the expansion mathematically symmetrical around the backdrop center and should remove the visual impression that one side is expanding faster than the other.

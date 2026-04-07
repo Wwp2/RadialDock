@@ -47,8 +47,8 @@ Window {
     property real folderSceneCenterX: 0
     property real folderSceneCenterY: 0
     property bool folderBackdropVisible: false
-    property real folderBackdropX: 0
-    property real folderBackdropY: 0
+    property real folderBackdropCenterX: 0
+    property real folderBackdropCenterY: 0
     property real folderBackdropWidth: baseStageWidth
     property real folderBackdropHeight: baseStageHeight
     property real folderBackdropOpacity: 0.0
@@ -83,8 +83,8 @@ Window {
 
     function syncFolderBackdropToScene() {
         var target = folderBackdropTargetRect()
-        folderBackdropX = target.x
-        folderBackdropY = target.y
+        folderBackdropCenterX = target.centerX
+        folderBackdropCenterY = target.centerY
         folderBackdropWidth = target.width
         folderBackdropHeight = target.height
     }
@@ -98,6 +98,8 @@ Window {
         return {
             x: left,
             y: top,
+            centerX: left + ((Math.max(1, right - left)) / 2),
+            centerY: top + ((Math.max(1, bottom - top)) / 2),
             width: Math.max(1, right - left),
             height: Math.max(1, bottom - top)
         }
@@ -105,11 +107,14 @@ Window {
 
     function showFolderBackdrop() {
         var startDiameter = Math.max(1, folderBackdropStartDiameter)
+        var target = folderBackdropTargetRect()
+        var startCenterX = target.centerX
+        var startCenterY = target.centerY
         folderBackdropExpandAnim.stop()
         folderBackdropExpandTimer.stop()
         folderBackdropExpanding = animationsEnabled
-        folderBackdropX = Math.round(folderSceneCenterX - (startDiameter / 2))
-        folderBackdropY = Math.round(folderSceneCenterY - (startDiameter / 2))
+        folderBackdropCenterX = startCenterX
+        folderBackdropCenterY = startCenterY
         folderBackdropWidth = startDiameter
         folderBackdropHeight = startDiameter
         folderBackdropOpacity = 1.0
@@ -386,10 +391,10 @@ Window {
         repeat: false
         onTriggered: {
             var target = overlay.folderBackdropTargetRect()
-            folderBackdropXAnim.from = overlay.folderBackdropX
-            folderBackdropXAnim.to = target.x
-            folderBackdropYAnim.from = overlay.folderBackdropY
-            folderBackdropYAnim.to = target.y
+            folderBackdropCenterXAnim.from = overlay.folderBackdropCenterX
+            folderBackdropCenterXAnim.to = target.centerX
+            folderBackdropCenterYAnim.from = overlay.folderBackdropCenterY
+            folderBackdropCenterYAnim.to = target.centerY
             folderBackdropWidthAnim.from = overlay.folderBackdropWidth
             folderBackdropWidthAnim.to = target.width
             folderBackdropHeightAnim.from = overlay.folderBackdropHeight
@@ -402,16 +407,16 @@ Window {
     ParallelAnimation {
         id: folderBackdropExpandAnim
         NumberAnimation {
-            id: folderBackdropXAnim
+            id: folderBackdropCenterXAnim
             target: overlay
-            property: "folderBackdropX"
+            property: "folderBackdropCenterX"
             duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
             easing.type: Easing.OutCubic
         }
         NumberAnimation {
-            id: folderBackdropYAnim
+            id: folderBackdropCenterYAnim
             target: overlay
-            property: "folderBackdropY"
+            property: "folderBackdropCenterY"
             duration: overlay.animDuration(overlay.backdropResizeBaseDuration)
             easing.type: Easing.OutCubic
         }
@@ -440,8 +445,8 @@ Window {
         id: folderBackdropWindow
         transientParent: overlay
         visible: overlay.folderBackdropVisible || opacity > 0.0
-        x: overlay.folderBackdropX
-        y: overlay.folderBackdropY
+        x: Math.round(overlay.folderBackdropCenterX - (width / 2))
+        y: Math.round(overlay.folderBackdropCenterY - (height / 2))
         width: overlay.folderBackdropWidth
         height: overlay.folderBackdropHeight
         opacity: overlay.folderBackdropOpacity
