@@ -8,6 +8,7 @@ Window {
     property int baseStageWidth: 390
     property int baseStageHeight: 390
     property int backdropResizeBaseDuration: 600
+    property int folderBackdropStartDiameter: ringWidget ? ringWidget.coreButtonDiameter : 124
     property int folderBackdropTargetPadding: 18
     property int folderBackdropKickoffDelay: 16
     property real animationSpeedScale: (typeof appModel !== "undefined" && appModel && appModel.animationSpeedScale)
@@ -103,15 +104,14 @@ Window {
     }
 
     function showFolderBackdrop() {
-        var startWidth = Math.max(1, backdrop.width)
-        var startHeight = Math.max(1, backdrop.height)
+        var startDiameter = Math.max(1, folderBackdropStartDiameter)
         folderBackdropExpandAnim.stop()
         folderBackdropExpandTimer.stop()
         folderBackdropExpanding = animationsEnabled
-        folderBackdropX = Math.round(folderSceneCenterX - (startWidth / 2))
-        folderBackdropY = Math.round(folderSceneCenterY - (startHeight / 2))
-        folderBackdropWidth = startWidth
-        folderBackdropHeight = startHeight
+        folderBackdropX = Math.round(folderSceneCenterX - (startDiameter / 2))
+        folderBackdropY = Math.round(folderSceneCenterY - (startDiameter / 2))
+        folderBackdropWidth = startDiameter
+        folderBackdropHeight = startDiameter
         folderBackdropOpacity = 1.0
         folderBackdropVisible = true
         if (animationsEnabled) {

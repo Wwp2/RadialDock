@@ -1029,3 +1029,9 @@
 - Added `folderBackdropTargetPadding` in `ui/Main.qml` so the decorative folder backdrop can end slightly larger than the folder view instead of matching it exactly.
 - The passive backdrop target geometry now expands equally around the folder scene and clamps to the monitor bounds when near an edge.
 - This restores the earlier visual feel where the backdrop extends a bit beyond the visible folder content.
+
+### 2026-04-07 - Change 102 (Folder backdrop now starts from the center-button circle)
+
+- Updated `ui/Main.qml` so the decorative folder backdrop now starts from a small circle instead of the full main dock backdrop footprint.
+- Added `folderBackdropStartDiameter` in `ui/Main.qml` and wired it to `coreButtonDiameter` in `ui/RadialRing.qml`.
+- The start of the folder expansion now matches the center button size, which avoids the awkward "contracting" look when opening smaller folders.

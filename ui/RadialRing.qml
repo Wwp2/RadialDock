@@ -55,6 +55,7 @@ Item {
     readonly property real orbitRadius: Math.min(width, height) * 0.37
     readonly property real ringItemDiameter: 60
     readonly property real ringItemRadius: ringItemDiameter / 2
+    readonly property int coreButtonDiameter: 124
     readonly property real decorativeOuterRingDiameter: (orbitRadius + ringItemRadius) * 2
     readonly property real decorativeInnerRingDiameter: Math.max(0, (orbitRadius - ringItemRadius) * 2)
     readonly property real centerIgnoreRadius: Math.min(width, height) * 0.24
@@ -1372,8 +1373,8 @@ Item {
     Rectangle {
         id: coreButton
         anchors.centerIn: parent
-        width: 124
-        height: 124
+        width: ring.coreButtonDiameter
+        height: ring.coreButtonDiameter
         radius: width / 2
         gradient: Gradient {
             GradientStop { position: 0.0; color: ring.groupEditMode ? "#E63A2020" : "#DD1A2938" }
