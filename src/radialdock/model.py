@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import threading
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from ctypes import wintypes
 from dataclasses import asdict, dataclass, field
@@ -46,6 +47,7 @@ DEFAULT_ANIMATIONS_ENABLED = True
 DEFAULT_CLOSE_AFTER_LAUNCH = True
 DEFAULT_FOLDER_COMPACT_THRESHOLD = 50
 DEFAULT_PREVIEW_SIZE = (128, 128)
+DEFAULT_ICON_UPGRADE_SIZE = 64
 MIN_FOLDER_COMPACT_THRESHOLD = 1
 MAX_FOLDER_COMPACT_THRESHOLD = 5000
 DEFAULT_ITEM_COLORS = [
@@ -208,6 +210,10 @@ class AppModel(QObject):
         self._pending_previews: set[tuple[str, tuple[int, int]]] = set()
         self._pending_folder_requests: set[str] = set()
         self._pending_icon_requests: set[str] = set()
+        self._pending_quality_upgrades: set[str] = set()
+        self._queued_quality_upgrades: deque[tuple[str, str, str, str]] = deque()
+        self._completed_quality_upgrades: set[str] = set()
+        self._icon_request_context: dict[str, tuple[str, str, str]] = {}
         self._folder_refresh_states: dict[str, str] = {}
         self._preview_lock = threading.Lock()
         self._folderEntriesResolved.connect(
@@ -778,6 +784,7 @@ class AppModel(QObject):
             if cache_key in self._pending_icon_requests:
                 return
             self._pending_icon_requests.add(cache_key)
+            self._icon_request_context[cache_key] = (path, kind, label)
 
         def worker() -> None:
             try:
@@ -796,6 +803,51 @@ class AppModel(QObject):
             return
         self._icon_cache[cache_key] = data_url
         self._bump_preview_version()
+        with self._preview_lock:
+            context = self._icon_request_context.get(cache_key)
+        if context:
+            path, kind, label = context
+            self._queue_quality_icon_upgrade(path, kind, label, cache_key)
+
+    def _queue_quality_icon_upgrade(self, path: str, kind: str, label: str, cache_key: str) -> None:
+        if not path:
+            return
+
+        with self._preview_lock:
+            if cache_key in self._completed_quality_upgrades or cache_key in self._pending_quality_upgrades:
+                return
+            self._pending_quality_upgrades.add(cache_key)
+            self._queued_quality_upgrades.append((path, kind, label, cache_key))
+
+        QMetaObject.invokeMethod(self, "_process_next_quality_icon_upgrade", Qt.ConnectionType.QueuedConnection)
+
+    @Slot()
+    def _process_next_quality_icon_upgrade(self) -> None:
+        with self._preview_lock:
+            if not self._queued_quality_upgrades:
+                return
+            path, kind, label, cache_key = self._queued_quality_upgrades.popleft()
+
+        data_url = ""
+        try:
+            icon = self._icon_for_item(path=path, kind=kind)
+            pixmap = icon.pixmap(DEFAULT_ICON_UPGRADE_SIZE, DEFAULT_ICON_UPGRADE_SIZE)
+            if pixmap.isNull():
+                pixmap = self._fallback_pixmap(label)
+            data_url = self._pixmap_to_data_url(pixmap)
+        finally:
+            with self._preview_lock:
+                self._pending_quality_upgrades.discard(cache_key)
+                self._completed_quality_upgrades.add(cache_key)
+                self._icon_request_context.pop(cache_key, None)
+                has_more = bool(self._queued_quality_upgrades)
+
+        if data_url and self._icon_cache.get(cache_key) != data_url:
+            self._icon_cache[cache_key] = data_url
+            self._bump_preview_version()
+
+        if has_more:
+            QMetaObject.invokeMethod(self, "_process_next_quality_icon_upgrade", Qt.ConnectionType.QueuedConnection)
 
     @Slot(str, bool)
     def requestFolderEntries(self, folder_path: str, refresh_on_open: bool) -> None:

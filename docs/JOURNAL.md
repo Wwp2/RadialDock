@@ -1061,3 +1061,10 @@
   - `.url` shortcut icons
   - custom icon locations and resource extraction
 - Kept the current image thumbnail path unchanged.
+
+### 2026-04-07 - Change 106 (Non-image icons now sharpen in a second GUI-thread pass after instant open)
+
+- Kept the current instant folder-open behavior intact: placeholders still appear immediately and low-res shell icons still resolve off the visible hot path.
+- Added a second-stage quality upgrade queue in `src/radialdock/model.py`.
+- After the background icon result lands, the app now upgrades non-image icons on the GUI thread in tiny one-at-a-time steps using `icon.pixmap(64, 64)`.
+- This keeps folder views usable immediately while restoring the sharper final icon rendering that looked better before the regression fix.
