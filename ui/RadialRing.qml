@@ -6,6 +6,8 @@ Item {
     id: ring
     signal folderBackRequested()
     signal settingsBackRequested()
+    signal folderSceneOpened()
+    signal folderSceneClosed()
     property real openProgress: 1.0
     property bool isOpen: true
     property bool groupEditMode: false
@@ -74,10 +76,10 @@ Item {
     readonly property real groupOrbitRadius: Math.max(44, Math.min(92, groupPanelSize * 0.28))
     readonly property int preferredStageWidth: settingsOpen
                                            ? Math.max(390, settingsPanelWidth + 56)
-                                           : (folderOpen ? Math.max(390, folderPanelWidth + 56) : 390)
+                                           : 390
     readonly property int preferredStageHeight: settingsOpen
                                             ? Math.max(390, settingsPanelHeight + 56)
-                                            : (folderOpen ? Math.max(390, folderPanelHeight + 56) : 390)
+                                            : 390
 
     function animDuration(baseDuration) {
         if (!animationsEnabled) {
@@ -467,6 +469,7 @@ Item {
         folderTitle = titleText || folderPath
         folderEntries = appModel.cachedFolderEntries ? appModel.cachedFolderEntries(folderPath) : []
         folderOpen = true
+        folderSceneOpened()
         if (!appModel.automaticFolderRefresh) {
             folderRefreshStatus = "disabled"
             folderLoading = false
@@ -730,6 +733,7 @@ Item {
         folderReturnGroupIndex = -1
         folderReturnGroupAnchorX = centerX
         folderReturnGroupAnchorY = centerY
+        folderSceneClosed()
     }
 
     function applySettingsClosed() {
@@ -1114,7 +1118,7 @@ Item {
             x: dragging ? dragCenterX - width / 2 : targetPos.x - width / 2
             y: dragging ? dragCenterY - height / 2 : targetPos.y - height / 2
             z: dragging ? 200 : 100 - index
-            opacity: ring.removingIndex === index ? 0.0 : revealValue * (ring.subViewOpen ? 0.18 : 1.0)
+            opacity: ring.removingIndex === index ? 0.0 : revealValue * (ring.settingsOpen ? 0.18 : 1.0)
             scale: ring.removingIndex === index
                    ? 0.55
                    : (dragging ? 1.12 : (0.65 + (0.35 * revealValue)))
@@ -1451,27 +1455,6 @@ Item {
                 triggeredEdit = true
                 ring.toggleGroupEditMode()
             }
-        }
-    }
-
-    FolderView {
-        width: Math.min(ring.folderPanelWidth, ring.width - 20)
-        height: Math.min(ring.folderPanelHeight, ring.height - 20)
-        anchors.centerIn: parent
-        visible: ring.folderOpen
-        opacity: ring.folderOpen ? 1.0 : 0.0
-        z: 300
-        title: ring.folderTitle
-        entries: ring.folderEntries
-        loading: ring.folderLoading
-        refreshStatus: ring.folderRefreshStatus
-        compactMode: ring.compactListMode
-        onTileActivated: function(path, kind) {
-            ring.openFolderEntry(path, kind)
-        }
-
-        Behavior on opacity {
-            NumberAnimation { duration: ring.animDuration(130); easing.type: Easing.OutCubic }
         }
     }
 

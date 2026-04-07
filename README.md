@@ -37,7 +37,7 @@ When installed, the runtime app is copied to:
 
 That installed `RadialDock.exe` is the normal day-to-day launcher binary.
 
-## Rebuild And Reinstall
+## Rebuild And Reinstall Script
 
 For development, this is the preferred workflow over running uninstall/install commands manually:
 

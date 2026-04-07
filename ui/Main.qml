@@ -38,6 +38,10 @@ Window {
     property bool mainRevealActive: false
     property bool snapBackdropResize: false
     property bool startupMessageVisible: false
+    property bool folderSceneVisible: false
+    property bool folderSceneReturningToMain: false
+    property real folderSceneCenterX: 0
+    property real folderSceneCenterY: 0
 
     function animDuration(baseDuration) {
         if (!animationsEnabled) {
@@ -55,6 +59,24 @@ Window {
 
     function shouldShowStartupMessage() {
         return !!(typeof appModel !== "undefined" && appModel && appModel.startupMessageEnabled)
+    }
+
+    function positionFolderScene() {
+        if (!folderSceneWindow.visible && !folderSceneVisible) {
+            return
+        }
+        var targetX = Math.round(folderSceneCenterX - (folderSceneWindow.width / 2))
+        var targetY = Math.round(folderSceneCenterY - (folderSceneWindow.height / 2))
+        folderSceneWindow.x = Math.max(0, Math.min(targetX, Screen.width - folderSceneWindow.width))
+        folderSceneWindow.y = Math.max(0, Math.min(targetY, Screen.height - folderSceneWindow.height))
+    }
+
+    function showFolderScene() {
+        folderSceneReturningToMain = false
+        folderSceneCenterX = x + (width / 2)
+        folderSceneCenterY = y + (height / 2)
+        positionFolderScene()
+        folderSceneVisible = true
     }
 
     function handleBackAction() {
@@ -121,7 +143,18 @@ Window {
     }
 
     function animateBackFromFolder() {
-        returnToMainRing("folder")
+        if (!ringWidget || !ringWidget.folderOpen) {
+            return
+        }
+        folderSceneReturningToMain = true
+        folderSceneVisible = false
+        if (!animationsEnabled) {
+            ringWidget.applyFolderClosed()
+            folderSceneReturningToMain = false
+            playMainRingReveal()
+            return
+        }
+        folderSceneReturnTimer.restart()
     }
 
     function animateBackFromSettings() {
@@ -162,6 +195,8 @@ Window {
         if (!visible || closing) {
             return
         }
+        folderSceneVisible = false
+        folderSceneReturningToMain = false
         closing = true
         overlayOpen = false
         mainRevealActive = false
@@ -257,8 +292,67 @@ Window {
         onFinished: {
             overlay.visible = false
             overlay.closing = false
+            overlay.folderSceneVisible = false
+            overlay.folderSceneReturningToMain = false
             if (ringWidget) {
                 ringWidget.resetToMainView()
+            }
+        }
+    }
+
+    Timer {
+        id: folderSceneReturnTimer
+        interval: overlay.animDuration(130)
+        repeat: false
+        onTriggered: {
+            if (ringWidget) {
+                ringWidget.applyFolderClosed()
+            }
+            overlay.folderSceneReturningToMain = false
+            overlay.playMainRingReveal()
+        }
+    }
+
+    Window {
+        id: folderSceneWindow
+        transientParent: overlay
+        visible: overlay.folderSceneVisible || opacity > 0.0
+        width: Math.min(Screen.width - 20, ringWidget ? ringWidget.folderPanelWidth : overlay.baseStageWidth)
+        height: Math.min(Screen.height - 20, ringWidget ? ringWidget.folderPanelHeight : overlay.baseStageHeight)
+        opacity: overlay.folderSceneVisible ? 1.0 : 0.0
+        color: "transparent"
+        flags: Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
+
+        onWidthChanged: overlay.positionFolderScene()
+        onHeightChanged: overlay.positionFolderScene()
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: overlay.animDuration(130)
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.RightButton
+            onClicked: function(mouse) {
+                mouse.accepted = true
+                overlay.handleBackAction()
+            }
+        }
+
+        FolderView {
+            anchors.fill: parent
+            title: ringWidget ? ringWidget.folderTitle : "Folder"
+            entries: ringWidget ? ringWidget.folderEntries : []
+            loading: ringWidget ? ringWidget.folderLoading : false
+            refreshStatus: ringWidget ? ringWidget.folderRefreshStatus : ""
+            compactMode: ringWidget ? ringWidget.compactListMode : false
+            onTileActivated: function(path, kind) {
+                if (ringWidget) {
+                    ringWidget.openFolderEntry(path, kind)
+                }
             }
         }
     }
@@ -269,10 +363,18 @@ Window {
         anchors.centerIn: parent
         width: overlay.targetStageWidth
         height: overlay.targetStageHeight
+        opacity: overlay.folderSceneVisible ? 0.0 : 1.0
         property real targetBackdropWidth: width
         property real targetBackdropHeight: height
         property real backdropVisualWidth: targetBackdropWidth
         property real backdropVisualHeight: targetBackdropHeight
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: overlay.animDuration(120)
+                easing.type: Easing.OutCubic
+            }
+        }
 
         Behavior on backdropVisualWidth {
             enabled: overlay.animationsEnabled && !overlay.snapBackdropResize
@@ -322,6 +424,17 @@ Window {
             mainRevealActive: overlay.mainRevealActive
             onFolderBackRequested: overlay.animateBackFromFolder()
             onSettingsBackRequested: overlay.animateBackFromSettings()
+        }
+
+        Connections {
+            target: ringWidget
+            function onFolderSceneOpened() {
+                overlay.showFolderScene()
+            }
+            function onFolderSceneClosed() {
+                overlay.folderSceneVisible = false
+                overlay.folderSceneReturningToMain = false
+            }
         }
 
         DropArea {

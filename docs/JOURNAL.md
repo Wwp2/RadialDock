@@ -965,3 +965,12 @@
   - uses that icon resource if available
   - otherwise falls back to the Windows shell icon for the `.url` file itself
 - This should fix missing icon graphics for pinned `.url` items and `.url` shortcuts shown inside folder views.
+
+### 2026-04-07 - Change 94 (Folder view now opens as a separate scene window)
+
+- Added `DevPlans/folder_scene_transition_plan.md` and ignored `DevPlans/` in `.gitignore` so this transition plan is preserved locally without being tracked.
+- Updated `ui/RadialRing.qml` so folder open state no longer changes `preferredStageWidth` / `preferredStageHeight`; the main dock window now stays at its normal size while a folder is open.
+- Added explicit `folderSceneOpened` / `folderSceneClosed` signals in `ui/RadialRing.qml`.
+- Updated `ui/Main.qml` to show the folder view in a separate frameless tool window centered on the main dock position.
+- The main dock stage now fades out while the separate folder scene fades in, instead of resizing or morphing the main dock window.
+- Returning from a folder now fades out the separate folder scene and then replays the normal main dock reveal animation.
