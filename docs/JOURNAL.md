@@ -982,3 +982,25 @@
 - Added explicit `mainSceneVisible` state so the dock remains hidden while the folder scene fades out.
 - The main dock scene is now only shown again through `playMainRingReveal()`, which aligns folder return with the same reveal path used by normal dock open.
 - Disabled the stage opacity behavior during the active reveal so there is no extra fade layer on top of the shared dock opening animation.
+
+### 2026-04-07 - Change 96 (Folder open now uses a decorative expanding backdrop again)
+
+- Audited the old folder-open animation and confirmed the original expanding effect came from the main dock backdrop following folder-driven stage resizing.
+- Reused that old backdrop styling and width/height easing in a new decorative transition layer instead of restoring the old geometry coupling.
+- Updated `ui/Main.qml` to add a dedicated `folderBackdropWindow` that:
+  - starts from the current dock backdrop footprint
+  - expands toward the folder scene footprint
+  - fades independently of the main dock and folder scene windows
+- Coordinated the folder-open timing so the main dock scene fades out, the decorative backdrop expands, and the folder scene fades in on top.
+- The main dock and folder scene remain mechanically separated, so this restores the visual expansion effect without reintroducing the old movement bug.
+
+### 2026-04-07 - Change 97 (Folder backdrop now stays as a passive underlay beneath the instant folder scene)
+
+- Replaced the fragile folder-open backdrop timing with a narrower implementation in `ui/Main.qml`.
+- The folder scene now stays on the last known-good immediate show path.
+- Added a separate passive `folderBackdropWindow` that:
+  - starts from the dock backdrop footprint
+  - animates toward the actual clamped folder scene geometry
+  - remains visible underneath the folder scene while the folder is open
+- The decorative underlay no longer delays, gates, or owns any folder content.
+- Folder close/back now hides that passive underlay again without changing the stable folder return path.
