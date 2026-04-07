@@ -1022,4 +1022,10 @@
 - Replaced the passive folder backdrop's geometry `Behavior` path in `ui/Main.qml` with an explicit `ParallelAnimation`.
 - The backdrop now restarts its `x`, `y`, `width`, and `height` expansion animation directly on each folder open, instead of relying on implicit behavior changes.
 - Added `folderBackdropExpanding` state so folder-scene resize updates do not fight the backdrop while that explicit animation is active.
-- This should make the expansion deterministic across repeated folder opens in the same session.
+- This was the change that fixed the replay issue and made the folder expansion deterministic across repeated folder opens in the same session.
+
+### 2026-04-07 - Change 101 (Folder backdrop endpoint can now overshoot the folder view)
+
+- Added `folderBackdropTargetPadding` in `ui/Main.qml` so the decorative folder backdrop can end slightly larger than the folder view instead of matching it exactly.
+- The passive backdrop target geometry now expands equally around the folder scene and clamps to the monitor bounds when near an edge.
+- This restores the earlier visual feel where the backdrop extends a bit beyond the visible folder content.

@@ -8,6 +8,7 @@ Window {
     property int baseStageWidth: 390
     property int baseStageHeight: 390
     property int backdropResizeBaseDuration: 600
+    property int folderBackdropTargetPadding: 18
     property int folderBackdropKickoffDelay: 16
     property real animationSpeedScale: (typeof appModel !== "undefined" && appModel && appModel.animationSpeedScale)
                                        ? appModel.animationSpeedScale
@@ -80,10 +81,25 @@ Window {
     }
 
     function syncFolderBackdropToScene() {
-        folderBackdropX = folderSceneWindow.x
-        folderBackdropY = folderSceneWindow.y
-        folderBackdropWidth = folderSceneWindow.width
-        folderBackdropHeight = folderSceneWindow.height
+        var target = folderBackdropTargetRect()
+        folderBackdropX = target.x
+        folderBackdropY = target.y
+        folderBackdropWidth = target.width
+        folderBackdropHeight = target.height
+    }
+
+    function folderBackdropTargetRect() {
+        var padding = Math.max(0, folderBackdropTargetPadding)
+        var left = Math.max(0, folderSceneWindow.x - padding)
+        var top = Math.max(0, folderSceneWindow.y - padding)
+        var right = Math.min(Screen.width, folderSceneWindow.x + folderSceneWindow.width + padding)
+        var bottom = Math.min(Screen.height, folderSceneWindow.y + folderSceneWindow.height + padding)
+        return {
+            x: left,
+            y: top,
+            width: Math.max(1, right - left),
+            height: Math.max(1, bottom - top)
+        }
     }
 
     function showFolderBackdrop() {
@@ -369,14 +385,15 @@ Window {
         interval: overlay.folderBackdropKickoffDelay
         repeat: false
         onTriggered: {
+            var target = overlay.folderBackdropTargetRect()
             folderBackdropXAnim.from = overlay.folderBackdropX
-            folderBackdropXAnim.to = folderSceneWindow.x
+            folderBackdropXAnim.to = target.x
             folderBackdropYAnim.from = overlay.folderBackdropY
-            folderBackdropYAnim.to = folderSceneWindow.y
+            folderBackdropYAnim.to = target.y
             folderBackdropWidthAnim.from = overlay.folderBackdropWidth
-            folderBackdropWidthAnim.to = folderSceneWindow.width
+            folderBackdropWidthAnim.to = target.width
             folderBackdropHeightAnim.from = overlay.folderBackdropHeight
-            folderBackdropHeightAnim.to = folderSceneWindow.height
+            folderBackdropHeightAnim.to = target.height
             folderBackdropExpandAnim.restart()
             folderSceneWindow.raise()
         }
