@@ -14,6 +14,8 @@ Item {
     property bool hotkeyError: false
     property string transferStatus: ""
     property bool transferError: false
+    property string pendingTransferKind: ""
+    property bool importRestartPromptVisible: false
 
     function clampSpeed(value) {
         return Math.max(0.1, Math.min(10.0, value))
@@ -221,10 +223,15 @@ Item {
             settings.refreshFromModel()
         }
         function onSettingsTransferResult(success, message) {
+            var transferKind = settings.pendingTransferKind
+            settings.pendingTransferKind = ""
             settings.transferError = !success
             settings.transferStatus = message
             if (success) {
                 settings.refreshFromModel()
+                if (transferKind === "import") {
+                    settings.importRestartPromptVisible = true
+                }
             }
         }
     }
@@ -899,6 +906,8 @@ Item {
                 text: "Export Settings Only"
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: {
+                    settings.pendingTransferKind = "export-settings"
+                    settings.importRestartPromptVisible = false
                     if (typeof backend !== "undefined" && backend && backend.exportSettingsOnly) {
                         backend.exportSettingsOnly()
                     }
@@ -924,6 +933,8 @@ Item {
                 text: "Export Settings And Dock"
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: {
+                    settings.pendingTransferKind = "export-settings-and-dock"
+                    settings.importRestartPromptVisible = false
                     if (typeof backend !== "undefined" && backend && backend.exportSettingsAndDock) {
                         backend.exportSettingsAndDock()
                     }
@@ -949,6 +960,8 @@ Item {
                 text: "Import Settings"
                 anchors.verticalCenter: parent.verticalCenter
                 onClicked: {
+                    settings.pendingTransferKind = "import"
+                    settings.importRestartPromptVisible = false
                     if (typeof backend !== "undefined" && backend && backend.importSettings) {
                         backend.importSettings()
                     }
@@ -978,6 +991,73 @@ Item {
                 color: transferError ? "#FFB3B3" : "#8EC9A8"
                 font.pixelSize: 10
                 wrapMode: Text.WordWrap
+            }
+        }
+    }
+
+    Rectangle {
+        visible: settings.importRestartPromptVisible
+        anchors.fill: parent
+        z: 2500
+        color: "#99071016"
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+        }
+
+        Rectangle {
+            width: Math.min(parent.width - 32, 360)
+            height: 170
+            anchors.centerIn: parent
+            radius: 12
+            color: "#F11A2530"
+            border.color: "#88C2D4E4"
+            border.width: 1
+
+            Column {
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 10
+
+                Text {
+                    text: "Restart Recommended"
+                    color: "#EAF4FF"
+                    font.pixelSize: 15
+                    font.bold: true
+                }
+
+                Text {
+                    text: "Settings were imported successfully. It is recommended to restart the app so all imported settings and dock changes apply cleanly."
+                    color: "#C9DBE8"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                    width: parent.width
+                }
+
+                Item {
+                    width: parent.width
+                    height: 1
+                }
+
+                Row {
+                    spacing: 8
+
+                    ActionButton {
+                        text: "Restart App"
+                        onClicked: {
+                            settings.importRestartPromptVisible = false
+                            if (typeof backend !== "undefined" && backend && backend.restartApp) {
+                                backend.restartApp()
+                            }
+                        }
+                    }
+
+                    ActionButton {
+                        text: "Close"
+                        onClicked: settings.importRestartPromptVisible = false
+                    }
+                }
             }
         }
     }

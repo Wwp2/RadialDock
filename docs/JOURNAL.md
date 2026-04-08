@@ -1084,3 +1084,10 @@
 - Updated src/radialdock/app.py so the Windows restart helper now launches with a sanitized environment instead of inheriting the current process runtime state.
 - Restart now strips internal _PYI* variables, clears legacy _MEIPASS2, and sets PYINSTALLER_RESET_ENVIRONMENT=1 before relaunching.
 - This keeps the delayed relaunch behavior that avoids the hotkey shutdown race, while forcing the restarted packaged app to create a fresh onefile extraction directory.
+
+### 2026-04-08 - Change 109 (Successful settings import now recommends a restart)
+
+- Updated ui/Settings.qml so a successful Import Settings action now opens a small restart recommendation popup.
+- The popup explains that restarting is recommended after importing settings and dock data.
+- Added Restart App and Close actions directly in that popup, reusing the existing restart path instead of making the user find the restart button manually.
+- Export actions keep using the existing inline status message and do not show the restart recommendation popup.
