@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
 import sys
+import tempfile
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Property, Qt, Signal, Slot, QProcess, QTimer
@@ -16,6 +20,24 @@ from radialdock.win_hotkey import GlobalHotkeyManager, HotkeySpec, normalize_hot
 
 
 FORBIDDEN_MOUSE_SHORTCUTS = {"MouseLeft", "MouseRight"}
+RESTART_TRACE_FILENAME = "restart_trace.log"
+
+
+def restart_trace_path(paths: AppPaths | None = None, portable: bool = False) -> Path:
+    if paths is not None:
+        return paths.config_dir / RESTART_TRACE_FILENAME
+    return AppPaths.from_environment(portable=portable).config_dir / RESTART_TRACE_FILENAME
+
+
+def write_restart_trace(message: str, trace_path: Path | None = None, portable: bool = False) -> None:
+    try:
+        target = trace_path or restart_trace_path(portable=portable)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().isoformat(timespec="milliseconds")
+        with target.open("a", encoding="utf-8") as handle:
+            handle.write(f"{timestamp} pid={os.getpid()} {message}\n")
+    except OSError:
+        pass
 
 
 class OverlayController(QObject):
@@ -153,31 +175,103 @@ class OverlayController(QObject):
             working_directory = str(Path(__file__).resolve().parents[2])
         return program, arguments, working_directory
 
-    def _schedule_restart(self, program: str, arguments: list[str], working_directory: str) -> bool:
+    @staticmethod
+    def _restart_environment() -> dict[str, str]:
+        env = os.environ.copy()
+        for key in list(env):
+            if key.startswith("_PYI"):
+                env.pop(key, None)
+        env.pop("_MEIPASS2", None)
+        env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+        return env
+
+    @staticmethod
+    def _cmd_quote(value: str) -> str:
+        return '"' + str(value).replace('"', '""') + '"'
+
+    def _write_restart_helper_script(
+        self,
+        program: str,
+        arguments: list[str],
+        working_directory: str,
+        trace_path: Path,
+    ) -> Path:
+        helper_path = Path(tempfile.gettempdir()) / f"radialdock-restart-{os.getpid()}.cmd"
+        argument_string = subprocess.list2cmdline(arguments)
+        lines = [
+            "@echo off",
+            "setlocal",
+            f'set "TRACE_PATH={trace_path}"',
+            '>>"%TRACE_PATH%" echo %date% %time% helper started',
+            "timeout /t 1 /nobreak >nul",
+            '>>"%TRACE_PATH%" echo %date% %time% helper delay complete',
+            'set "PYINSTALLER_RESET_ENVIRONMENT=1"',
+            'set "_MEIPASS2="',
+            'set "_PYI_APPLICATION_HOME_DIR="',
+            'set "_PYI_ARCHIVE_FILE="',
+            'set "_PYI_PARENT_PROCESS_LEVEL="',
+            f'start "" /d {self._cmd_quote(working_directory)} {self._cmd_quote(program)} {argument_string}'.rstrip(),
+            'set "START_RC=%ERRORLEVEL%"',
+            '>>"%TRACE_PATH%" echo %date% %time% helper start issued errorlevel=%START_RC%',
+            'del /f /q "%~f0" >nul 2>&1',
+        ]
+        helper_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+        return helper_path
+
+    def _schedule_restart(
+        self,
+        program: str,
+        arguments: list[str],
+        working_directory: str,
+        trace_path: Path,
+    ) -> bool:
         if sys.platform == "win32":
-            argument_list = ", ".join(self._ps_quote(arg) for arg in arguments)
-            script = (
-                "Start-Sleep -Milliseconds 700; "
-                f"Start-Process -FilePath {self._ps_quote(program)} "
-                f"-ArgumentList @({argument_list}) "
-                f"-WorkingDirectory {self._ps_quote(working_directory)}"
+            helper_path = self._write_restart_helper_script(program, arguments, working_directory, trace_path)
+            creationflags = (
+                getattr(subprocess, "DETACHED_PROCESS", 0)
+                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                | getattr(subprocess, "CREATE_NO_WINDOW", 0)
             )
-            started, _ = QProcess.startDetached(
-                "powershell.exe",
-                ["-NoProfile", "-WindowStyle", "Hidden", "-Command", script],
-            )
-            return started
+            try:
+                subprocess.Popen(
+                    ["cmd.exe", "/c", str(helper_path)],
+                    cwd=working_directory,
+                    env=self._restart_environment(),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    close_fds=True,
+                    creationflags=creationflags,
+                )
+            except OSError as exc:
+                write_restart_trace(f"restart helper launch failed: {exc}", trace_path)
+                return False
+            return True
 
         started = QProcess.startDetached(program, arguments)
         if isinstance(started, tuple):
-            return bool(started[0])
-        return bool(started)
+            started = bool(started[0])
+        else:
+            started = bool(started)
+        if not started:
+            write_restart_trace("restart helper launch failed on non-Windows path", trace_path)
+        return started
 
     @Slot()
     def restartApp(self) -> None:
+        trace_path = restart_trace_path(self._model.paths)
         program, arguments, working_directory = self._restart_target()
-        started = self._schedule_restart(program, arguments, working_directory)
+        stripped_keys = sorted(
+            key for key in os.environ if key.startswith("_PYI") or key == "_MEIPASS2"
+        )
+        write_restart_trace(
+            f"restart requested program={program!r} arguments={arguments!r} cwd={working_directory!r} stripped_env={stripped_keys!r}",
+            trace_path,
+        )
+        started = self._schedule_restart(program, arguments, working_directory, trace_path)
+        write_restart_trace(f"restart helper scheduled={started}", trace_path)
         if started:
+            write_restart_trace("restart quitting current instance", trace_path)
             self.quitApp()
 
     @Slot(str, result=bool)
@@ -293,6 +387,11 @@ def main(argv: list[str] | None = None) -> int:
     app.setQuitOnLastWindowClosed(False)
 
     paths = AppPaths.from_environment(portable=args.portable)
+    trace_path = restart_trace_path(paths)
+    write_restart_trace(
+        f"process boot argv={launch_args!r} frozen={getattr(sys, 'frozen', False)} exe={sys.executable!r} cwd={os.getcwd()!r}",
+        trace_path,
+    )
     model = AppModel(paths=paths)
     hotkey = GlobalHotkeyManager(parent=app)
     controller = OverlayController(model, launch_args, hotkey)
@@ -306,6 +405,7 @@ def main(argv: list[str] | None = None) -> int:
     engine.load(str(ui_dir / "Main.qml"))
 
     if not engine.rootObjects():
+        write_restart_trace("qml load failed", trace_path)
         return 1
 
     hotkey.activated.connect(controller.on_hotkey)
@@ -319,18 +419,23 @@ def main(argv: list[str] | None = None) -> int:
         initial_spec = parse_hotkey(model.settings.hotkey)
 
     if not hotkey.register_spec(initial_spec):
+        write_restart_trace(f"hotkey registration failed for {model.settings.hotkey!r}", trace_path)
         print(f"Failed to register global hotkey: {model.settings.hotkey}", file=sys.stderr)
         return 2
 
+    write_restart_trace(f"startup ready hotkey={model.settings.hotkey!r}", trace_path)
     QTimer.singleShot(900, model.warmStartupCaches)
 
     if args.shortcut_launch or model.startupMessageEnabled:
         QTimer.singleShot(0, controller.requestShortcutLaunch)
 
     exit_code = app.exec()
+    write_restart_trace(f"app exiting code={exit_code}", trace_path)
     hotkey.unregister()
     return exit_code
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+

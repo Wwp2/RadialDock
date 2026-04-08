@@ -742,7 +742,7 @@
   - visible delegates refresh automatically when the async thumbnail becomes available
 - In `src/radialdock/model.py` folder entry building:
   - folder listing no longer pre-generates thumbnails while constructing the folder model
-  - this removes the old “wait for folder entries to finish preview work before the view feels ready” path
+  - this removes the old â€œwait for folder entries to finish preview work before the view feels readyâ€ path
 - Result:
   - menu/folder opens should feel faster
   - cached previews display immediately if they already exist
@@ -1077,3 +1077,10 @@
 - Updated restart to schedule the relaunch through a short delayed detached PowerShell helper on Windows.
 - The restarted instance now launches after the current process has had time to exit and release the hotkey.
 - Restart now also reopens visibly by including `--shortcut-launch` in the restarted instance args.
+
+### 2026-04-08 - Change 108 (Packaged restart now resets PyInstaller onefile runtime state)
+
+- Audited restart failures in the installed onefile EXE and identified the _MEI...\\python313.dll load error as inherited PyInstaller runtime state during restart.
+- Updated src/radialdock/app.py so the Windows restart helper now launches with a sanitized environment instead of inheriting the current process runtime state.
+- Restart now strips internal _PYI* variables, clears legacy _MEIPASS2, and sets PYINSTALLER_RESET_ENVIRONMENT=1 before relaunching.
+- This keeps the delayed relaunch behavior that avoids the hotkey shutdown race, while forcing the restarted packaged app to create a fresh onefile extraction directory.

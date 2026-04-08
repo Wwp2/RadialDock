@@ -32,5 +32,3 @@ cache/
 *.log
 
 DevPlans/
-ssh.txt
-ssh.txt.pub
