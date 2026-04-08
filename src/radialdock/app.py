@@ -137,16 +137,46 @@ class OverlayController(QObject):
         if app is not None:
             app.quit()
 
-    @Slot()
-    def restartApp(self) -> None:
+    @staticmethod
+    def _ps_quote(value: str) -> str:
+        return "'" + str(value).replace("'", "''") + "'"
+
+    def _restart_target(self) -> tuple[str, list[str], str]:
+        restart_args = [arg for arg in [*self._launch_args, "--shortcut-launch"] if arg]
         if getattr(sys, "frozen", False):
             program = sys.executable
-            arguments = self._launch_args
+            arguments = restart_args
+            working_directory = str(Path(sys.executable).resolve().parent)
         else:
             program = sys.executable
-            arguments = ["-m", "radialdock.app", *self._launch_args]
+            arguments = ["-m", "radialdock.app", *restart_args]
+            working_directory = str(Path(__file__).resolve().parents[2])
+        return program, arguments, working_directory
+
+    def _schedule_restart(self, program: str, arguments: list[str], working_directory: str) -> bool:
+        if sys.platform == "win32":
+            argument_list = ", ".join(self._ps_quote(arg) for arg in arguments)
+            script = (
+                "Start-Sleep -Milliseconds 700; "
+                f"Start-Process -FilePath {self._ps_quote(program)} "
+                f"-ArgumentList @({argument_list}) "
+                f"-WorkingDirectory {self._ps_quote(working_directory)}"
+            )
+            started, _ = QProcess.startDetached(
+                "powershell.exe",
+                ["-NoProfile", "-WindowStyle", "Hidden", "-Command", script],
+            )
+            return started
 
         started = QProcess.startDetached(program, arguments)
+        if isinstance(started, tuple):
+            return bool(started[0])
+        return bool(started)
+
+    @Slot()
+    def restartApp(self) -> None:
+        program, arguments, working_directory = self._restart_target()
+        started = self._schedule_restart(program, arguments, working_directory)
         if started:
             self.quitApp()
 

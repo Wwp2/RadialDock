@@ -1068,3 +1068,12 @@
 - Added a second-stage quality upgrade queue in `src/radialdock/model.py`.
 - After the background icon result lands, the app now upgrades non-image icons on the GUI thread in tiny one-at-a-time steps using `icon.pixmap(64, 64)`.
 - This keeps folder views usable immediately while restoring the sharper final icon rendering that looked better before the regression fix.
+
+### 2026-04-07 - Change 107 (Restart now relaunches reliably after the current instance exits)
+
+- Audited the restart path in `src/radialdock/app.py` and found two issues:
+  - the replacement instance could start before the current one released the global hotkey, then exit immediately
+  - `QProcess.startDetached(...)` was being treated like a plain boolean even though PySide returns a tuple on Windows
+- Updated restart to schedule the relaunch through a short delayed detached PowerShell helper on Windows.
+- The restarted instance now launches after the current process has had time to exit and release the hotkey.
+- Restart now also reopens visibly by including `--shortcut-launch` in the restarted instance args.
