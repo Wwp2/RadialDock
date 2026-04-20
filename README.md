@@ -2,6 +2,8 @@
 
 RadialDock is a Windows launcher overlay built with PySide6 and Qt Quick. It opens as a radial menu, lets you pin files, folders, apps, and shortcuts, and is designed for fast mouse-first launching.
 
+https://github.com/user-attachments/assets/e17b115a-a539-4d00-aa30-3c99df3c2667
+
 ## What It Does
 
 - Opens the dock with a global hotkey near the cursor
@@ -143,7 +145,7 @@ python -m radialdock.app
 - If a folder contains more than `50` items, compact list mode is used.
 - Source runs store settings at `%APPDATA%\\RadialDock\\config.json`.
 - Installed runs store settings and cache inside `%LocalAppData%\\RadialDock\\`.
-- `Manual Refresh` runs only the checks whose automatic toggle is currently off.
+- `Manual Refresh` runs only the checks when automatic toggle is currently off.
 
 ## CLI Modes
 
@@ -160,7 +162,7 @@ Install/uninstall supports:
 - an `Open after install` choice during install
 - startup shortcut management
 - closing a running installed `RadialDock.exe` automatically before uninstall
-- a `--silent` mode that answers yes to all install questions and suppresses installer dialogs
+- a `--silent` mode that answers yes to all install questions (desktop shortcut and automatic start) and suppresses installer dialogs
 
 When running from source (`python -m radialdock.app`), install features are still available for development, but the true copy-to-`%LocalAppData%` EXE flow is intended for the packaged build.
 
