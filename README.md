@@ -72,7 +72,7 @@ Main interaction rules:
 1. Create and activate venv in Git Bash:
 
 ```bash
-py -3 -m venv .venv
+python -m venv .venv
 source .venv/Scripts/activate
 ```
 
@@ -120,7 +120,7 @@ python -m radialdock.app
 - In `Group Edit Mode`, drag one ring item onto another to merge them into a named group.
 - In normal mode, clicking a group opens a smaller radial sub-ring on top of the main dock.
 - In normal mode, you can drag an item out of an open group sub-ring and drop it onto the main dock to move it back to the top level.
-- Settings include:
+- Settings include, but is not limited to:
   - `Restart App` and `Quit App`
   - single-file backup export/import
   - `Automatic Item Alignement`
