@@ -14,11 +14,11 @@ https://github.com/user-attachments/assets/e17b115a-a539-4d00-aa30-3c99df3c2667
 ## Prerequisites
 
 - Windows 11
-- Python 3.11+ (validated with Python 3.13)
+- Python 3.13.x for packaged installer builds
 
 ## Build Installer
 
-Use this when you want the packaged installer EXE and a gui installer (the installer also has easy 'autorun on startup' setup):
+Use this when you want the packaged installer EXE and a GUI installer (the installer also has easy 'autorun on startup' setup):
 
 ```powershell
 .\build.ps1
@@ -26,12 +26,15 @@ Use this when you want the packaged installer EXE and a gui installer (the insta
 
 The build:
 
-- creates or reuses the local `.venv`
-- installs the required build/runtime packages into that `.venv`
+- creates or reuses the local `.venv` with Python 3.13.x
+- installs the locked build/runtime packages from `requirements-lock.txt` into that `.venv`
 - reads the version from `VERSION.txt`
 - creates `dist\RadialDockInstaller-<version>.exe`
+- writes `dist\RadialDock-build-info-<version>.json` so build dependency versions can be compared between machines
 
 This keeps the build dependencies out of the user's global Python installation.
+
+If the build says the existing `.venv` is using the wrong Python version, delete `.venv`, install Python 3.13.x, and run the build again.
 
 When installed, the runtime app is copied to:
 
@@ -53,6 +56,8 @@ This script:
 - reads the current version from `VERSION.txt`
 - runs the matching installer with `--uninstall --silent`
 - runs the same installer again with `--install --silent`
+
+Because this script calls `build.ps1`, it also uses the locked dependency set from `requirements-lock.txt`.
 
 ## How To Use The App
 
@@ -100,6 +105,7 @@ Basic source-run notes:
 - Hold the center core for 2 seconds to toggle `Group Edit Mode`
 - Fresh installs start with an empty ring
 - The more detailed behavior list is in `Feature Summary` below
+- To mirror packaged builds exactly, install `requirements-lock.txt` instead of `requirements.txt`
 
 PowerShell alternative:
 

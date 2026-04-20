@@ -1091,3 +1091,13 @@
 - The popup explains that restarting is recommended after importing settings and dock data.
 - Added Restart App and Close actions directly in that popup, reusing the existing restart path instead of making the user find the restart button manually.
 - Export actions keep using the existing inline status message and do not show the restart recommendation popup.
+
+### 2026-04-20 - Change 110 (Installer builds now use locked dependencies and build diagnostics)
+
+- Added `requirements-lock.txt` for the packaged installer build path.
+- Updated `build.ps1` so clean-clone installer builds require Python 3.13.x and install the locked dependency set into the local `.venv`.
+- The editable project install now uses the same locked environment instead of a temporary isolated build dependency environment.
+- The build script now fails clearly if an existing `.venv` was created with a different Python version.
+- Added `build\build-info.json` generation and copied it to `dist\RadialDock-build-info-<version>.json` after each build.
+- The build-info file records the app version, Python version, PySide6 version, PyInstaller version, Pillow version, OS version, source commit, and `pip freeze` output.
+- Updated `README.md` so the rebuild/install workflow documents the Python 3.13 requirement, locked build dependencies, and build-info output.

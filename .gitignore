@@ -33,3 +33,7 @@ cache/
 
 DevPlans/
 .github/
+
+.radialdock/config.json
+src/radialdock.egg-info/*
+.vscode/settings.json
