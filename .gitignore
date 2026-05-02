@@ -32,8 +32,12 @@ cache/
 *.log
 
 DevPlans/
-.github/
 
-.radialdock/config.json
+# Local / portable app data at repo root (config + cache); not for sharing
+.radialdock/
+
+# Cursor local project state
+.cursor/
+
 src/radialdock.egg-info/*
 .vscode/settings.json
