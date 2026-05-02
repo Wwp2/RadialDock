@@ -374,7 +374,11 @@ def main(argv: list[str] | None = None) -> int:
         return install.install_self(launch_args, silent=args.silent)
     if args.uninstall:
         return install.uninstall_self(silent=args.silent)
-    if not args.portable and install.should_offer_manage_prompt():
+    if (
+        not args.portable
+        and os.environ.get("RADIALDOCK_DEV") != "1"
+        and install.should_offer_manage_prompt()
+    ):
         if install.is_installed():
             if install.offer_uninstall_prompt():
                 return install.uninstall_self()

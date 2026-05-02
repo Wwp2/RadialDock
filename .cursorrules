@@ -1,0 +1,32 @@
+# RadialDock — AI coding rules
+
+## Scope and behavior
+- Make the smallest change that satisfies the task. No broad refactors, drive-by cleanups, or formatting-only edits across unrelated files.
+- Preserve existing architecture and runtime behavior unless the task explicitly requires otherwise. Call out risky assumptions before implementing.
+
+## Stack (this repo only)
+- **PySide6 (Qt 6) + Qt Quick (QML)**. Do not assume WPF, WinUI, .NET MAUI, Electron, or Tk.
+- Python `>=3.11` in `pyproject.toml`; **`build.ps1` pins Python 3.13.x** for installer builds. Dependencies: PySide6, pywin32, watchdog, Pillow (see `requirements.txt` / `pyproject.toml`).
+
+## Python ↔ QML separation
+- **`AppModel` (`model.py`) is the source of truth** for dock data, settings fields backed by `Settings`, persistence, icons/thumbnails, and `openPath(...)`.
+- **QML (`ui/*.qml`) is presentation and interaction**: layout, animation, `MouseArea` / `Shortcut` / `DropArea`, local `ListModel` mirrors — not the authority for durable business rules.
+- **Do not duplicate business logic in QML that belongs in `AppModel`** (path rules, persistence shape, launch semantics). Prefer slots/properties on `AppModel` or `OverlayController` and thin QML callers.
+- **`backend`** (`OverlayController` in `app.py`): overlay-adjacent actions (hotkey UX, hide, restart, import/export, startup toggle), not a second copy of ring-item truth.
+
+## Serialization
+- Ring items serialize through **`DockItem` → JSON via `AppModel`**; typical save path is **`appModel.saveRingItems(...)`** after QML builds a payload.
+- **Avoid breaking the serialization format of `DockItem` / `config.json`** without an explicit migration strategy and backward compatibility.
+
+## Hotkeys and native plumbing
+- Global shortcuts use **`win_hotkey.py`** (`RegisterHotKey`, `WM_HOTKEY`, native event filter). **Be careful changing hotkey registration, unregister, or the native event path** — easy to regress toggle-at-cursor or startup.
+
+## UI consistency
+- Match existing QML patterns in `ui/`; **`RadialRing.qml`** is large and central — treat edits as high-risk.
+- Do not add dependencies without strong justification (`requirements-lock.txt` for packaged builds).
+
+## Config paths
+- Default dev/source persistence: **`%AppData%\RadialDock\config.json`** (see `AppPaths` / README). Portable and installed layouts differ — read **`AppPaths` in `model.py`** before changing storage.
+
+## Verify
+- After substantive edits: `python -m radialdock.app`, or **`.\dev.ps1` / `python scripts/dev_watch.py`** for auto-restart on `.py`/`.qml` saves. Use `.\build.ps1` when packaging changes matter. **No automated test suite in-repo** — note in summary if not run.

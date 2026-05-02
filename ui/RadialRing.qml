@@ -33,6 +33,8 @@ Item {
     property string currentFolderPath: ""
     property string folderTitle: ""
     property var folderEntries: []
+    property bool recentRadialOpen: false
+    property string recentFolderPath: ""
     property int radialItemMoveBaseDuration: 500
     property real animationSpeedScale: 0.2
     property bool animationsEnabled: true
@@ -87,6 +89,19 @@ Item {
             return 0
         }
         return Math.max(1, Math.round(baseDuration * animationSpeedScale))
+    }
+
+    function folderPathsEqual(a, b) {
+        if (!a || !b) {
+            return false
+        }
+        if (a === b) {
+            return true
+        }
+        if (Qt.platform.os === "windows") {
+            return String(a).toLowerCase() === String(b).toLowerCase()
+        }
+        return false
     }
 
     ListModel {
@@ -538,6 +553,8 @@ Item {
             return
         }
         groupOpen = false
+        recentRadialOpen = false
+        recentFolderPath = ""
         settingsOpen = true
     }
 
@@ -549,6 +566,8 @@ Item {
         groupTitle = ""
         groupEntries = []
         openGroupIndex = -1
+        recentRadialOpen = false
+        recentFolderPath = ""
     }
 
     function toggleGroupEditMode() {
@@ -594,6 +613,8 @@ Item {
         if (!entry || entry.kind !== "group") {
             return
         }
+        recentRadialOpen = false
+        recentFolderPath = ""
         var pos = slotPosition(itemIndex)
         groupAnchorX = pos.x
         groupAnchorY = pos.y
@@ -603,7 +624,37 @@ Item {
         groupOpen = true
     }
 
+    function openRecentRadialAtIndex(itemIndex) {
+        var entry = modelEntryAt(itemIndex)
+        if (!entry || entry.kind !== "folder" || !entry.path) {
+            return
+        }
+        if (typeof appModel === "undefined" || !appModel || !appModel.isShellRecentFolderPath) {
+            return
+        }
+        if (!appModel.isShellRecentFolderPath(entry.path)) {
+            return
+        }
+        var folderPath = entry.path
+        settingsOpen = false
+        var pos = slotPosition(itemIndex)
+        groupAnchorX = pos.x
+        groupAnchorY = pos.y
+        groupTitle = entry.label || "Recent"
+        groupEntries = appModel.cachedFolderEntries ? appModel.cachedFolderEntries(folderPath) : []
+        openGroupIndex = itemIndex
+        recentRadialOpen = true
+        recentFolderPath = folderPath
+        groupOpen = true
+        if (appModel.requestFolderEntries) {
+            appModel.requestFolderEntries(folderPath, true)
+        }
+    }
+
     function moveGroupEntryToMain(groupIndex, px, py) {
+        if (recentRadialOpen) {
+            return
+        }
         if (groupIndex < 0 || groupIndex >= groupEntries.length) {
             return
         }
@@ -762,6 +813,8 @@ Item {
         currentFolderPath = ""
         folderTitle = ""
         folderEntries = []
+        recentRadialOpen = false
+        recentFolderPath = ""
         resetDragState()
     }
 
@@ -793,7 +846,12 @@ Item {
             return
         }
         if (entry.kind === "folder") {
-            openFolderPath(entry.path, entry.label || entry.path, false)
+            if (typeof appModel !== "undefined" && appModel && appModel.isShellRecentFolderPath
+                    && appModel.isShellRecentFolderPath(entry.path)) {
+                openRecentRadialAtIndex(itemIndex)
+            } else {
+                openFolderPath(entry.path, entry.label || entry.path, false)
+            }
             return
         }
         if (typeof appModel !== "undefined" && appModel && appModel.openPath) {
@@ -984,6 +1042,10 @@ Item {
             ring.loadFromSettings()
         }
         function onFolderEntriesReady(folderPath, entries) {
+            if (ring.recentRadialOpen && ring.folderPathsEqual(ring.recentFolderPath, folderPath)) {
+                ring.groupEntries = entries
+                return
+            }
             if (!ring.folderOpen || ring.currentFolderPath !== folderPath) {
                 return
             }
@@ -1640,7 +1702,8 @@ Item {
                             ring.activateGroupEntry(index)
                             return
                         }
-                        if (!ring.isPointInsideOpenGroup(ringPoint.x, ringPoint.y)) {
+                        if (!ring.recentRadialOpen
+                                && !ring.isPointInsideOpenGroup(ringPoint.x, ringPoint.y)) {
                             ring.moveGroupEntryToMain(index, ringPoint.x, ringPoint.y)
                         }
                     }
