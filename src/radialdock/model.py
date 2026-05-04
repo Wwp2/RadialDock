@@ -423,6 +423,26 @@ class AppModel(QObject):
 
         return walk(items)
 
+    @Slot()
+    def ensureRecentFolderTile(self) -> None:
+        """Append a shell Recent folder tile if missing. No-op if already present or Recent dir unavailable."""
+        if self._ring_contains_recent_folder_tile(self.settings.items):
+            return
+        root = recent_items.get_shell_recent_folder()
+        if root is None or not root.is_dir():
+            return
+        tile = DockItem(
+            path=str(root.resolve()),
+            label="Recent",
+            kind="folder",
+            color=DEFAULT_ITEM_COLORS[0],
+            angle=0.0,
+        )
+        self.settings.items = [*self.settings.items, tile]
+        self._save_settings(self.settings)
+        self._sync_folder_refresh_state_map(self.settings.items)
+        self.ringItemsChanged.emit()
+
     def _apply_recent_tile_migration_if_needed(self) -> None:
         if self.settings.recent_tile_migration_completed:
             return
