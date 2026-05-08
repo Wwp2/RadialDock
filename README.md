@@ -12,10 +12,6 @@ https://github.com/user-attachments/assets/e17b115a-a539-4d00-aa30-3c99df3c2667
 
 ## Which Path Should I Use?
 
-If you only want to use RadialDock, download the packaged installer EXE. You do **not** need Python, Git, or the source code.
-
-Developers create the packaged installer at `dist/RadialDockInstaller-<version>.exe` by running `build.ps1`. On GitHub, the same EXE should usually be downloaded from the project's Releases/download area; a fresh source checkout may not include `dist/` unless release artifacts are published there.
-
 ```mermaid
 flowchart TD
     A["What do you want to do?"]
