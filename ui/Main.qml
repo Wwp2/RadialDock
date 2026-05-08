@@ -4,7 +4,8 @@ import QtQuick.Controls
 
 Window {
     id: overlay
-    property int outerPadding: 110
+    property int normalRenderMargin: 95
+    property int groupRenderMargin: 18
     property int baseStageWidth: 390
     property int baseStageHeight: 390
     property int backdropResizeBaseDuration: 600
@@ -17,8 +18,10 @@ Window {
     property bool animationsEnabled: (typeof appModel !== "undefined" && appModel)
                                      ? appModel.animationsEnabled
                                      : true
-    readonly property int maxStageWidth: Math.max(baseStageWidth, Screen.width - outerPadding - 20)
-    readonly property int maxStageHeight: Math.max(baseStageHeight, Screen.height - outerPadding - 20)
+    property real dockScreenCenterX: Screen.width / 2
+    property real dockScreenCenterY: Screen.height / 2
+    readonly property int maxStageWidth: Math.max(baseStageWidth, Screen.width - (normalRenderMargin * 2) - 20)
+    readonly property int maxStageHeight: Math.max(baseStageHeight, Screen.height - (normalRenderMargin * 2) - 20)
     property int targetStageWidth: Math.min(
                                        maxStageWidth,
                                        ringWidget ? ringWidget.preferredStageWidth : baseStageWidth
@@ -27,9 +30,45 @@ Window {
                                         maxStageHeight,
                                         ringWidget ? ringWidget.preferredStageHeight : baseStageHeight
                                     )
+    // Render extents are measured from the dock center. The base margin reserves
+    // current radial group space so open/close does not move the native window.
+    readonly property real baseRenderLeft: (targetStageWidth / 2) + normalRenderMargin
+    readonly property real baseRenderRight: (targetStageWidth / 2) + normalRenderMargin
+    readonly property real baseRenderTop: (targetStageHeight / 2) + normalRenderMargin
+    readonly property real baseRenderBottom: (targetStageHeight / 2) + normalRenderMargin
+    readonly property real groupBoundsLeft: (ringWidget && ringWidget.groupOpen)
+                                           ? ringWidget.x + ringWidget.groupAnchorX - (ringWidget.groupPanelSize / 2) - (targetStageWidth / 2)
+                                           : 0
+    readonly property real groupBoundsRight: (ringWidget && ringWidget.groupOpen)
+                                            ? ringWidget.x + ringWidget.groupAnchorX + (ringWidget.groupPanelSize / 2) - (targetStageWidth / 2)
+                                            : 0
+    readonly property real groupBoundsTop: (ringWidget && ringWidget.groupOpen)
+                                          ? ringWidget.y + ringWidget.groupAnchorY - (ringWidget.groupPanelSize / 2) - (targetStageHeight / 2)
+                                          : 0
+    readonly property real groupBoundsBottom: (ringWidget && ringWidget.groupOpen)
+                                             ? ringWidget.y + ringWidget.groupAnchorY + (ringWidget.groupPanelSize / 2) - (targetStageHeight / 2)
+                                             : 0
+    readonly property real groupNeededLeft: (ringWidget && ringWidget.groupOpen)
+                                           ? Math.max(0, -groupBoundsLeft + groupRenderMargin)
+                                           : 0
+    readonly property real groupNeededRight: (ringWidget && ringWidget.groupOpen)
+                                            ? Math.max(0, groupBoundsRight + groupRenderMargin)
+                                            : 0
+    readonly property real groupNeededTop: (ringWidget && ringWidget.groupOpen)
+                                          ? Math.max(0, -groupBoundsTop + groupRenderMargin)
+                                          : 0
+    readonly property real groupNeededBottom: (ringWidget && ringWidget.groupOpen)
+                                             ? Math.max(0, groupBoundsBottom + groupRenderMargin)
+                                             : 0
+    readonly property int renderLeft: Math.ceil(Math.max(baseRenderLeft, groupNeededLeft))
+    readonly property int renderRight: Math.ceil(Math.max(baseRenderRight, groupNeededRight))
+    readonly property int renderTop: Math.ceil(Math.max(baseRenderTop, groupNeededTop))
+    readonly property int renderBottom: Math.ceil(Math.max(baseRenderBottom, groupNeededBottom))
 
-    width: targetStageWidth + outerPadding
-    height: targetStageHeight + outerPadding
+    x: Math.round(dockScreenCenterX - renderLeft)
+    y: Math.round(dockScreenCenterY - renderTop)
+    width: renderLeft + renderRight
+    height: renderTop + renderBottom
     visible: false
     opacity: 0.0
     color: "transparent"
@@ -61,11 +100,27 @@ Window {
         return Math.max(1, Math.round(baseDuration * animationSpeedScale))
     }
 
-    function clampWindowToScreen() {
-        var maxX = Math.max(0, Screen.width - width)
-        var maxY = Math.max(0, Screen.height - height)
-        x = Math.max(0, Math.min(x, maxX))
-        y = Math.max(0, Math.min(y, maxY))
+    function clampDockCenterX(value) {
+        var minValue = baseRenderLeft
+        var maxValue = Screen.width - baseRenderRight
+        if (maxValue < minValue) {
+            return Screen.width / 2
+        }
+        return Math.max(minValue, Math.min(value, maxValue))
+    }
+
+    function clampDockCenterY(value) {
+        var minValue = baseRenderTop
+        var maxValue = Screen.height - baseRenderBottom
+        if (maxValue < minValue) {
+            return Screen.height / 2
+        }
+        return Math.max(minValue, Math.min(value, maxValue))
+    }
+
+    function setDockCenter(cx, cy) {
+        dockScreenCenterX = Math.round(clampDockCenterX(cx))
+        dockScreenCenterY = Math.round(clampDockCenterY(cy))
     }
 
     function shouldShowStartupMessage() {
@@ -137,8 +192,8 @@ Window {
 
     function showFolderScene() {
         folderSceneReturningToMain = false
-        folderSceneCenterX = x + (width / 2)
-        folderSceneCenterY = y + (height / 2)
+        folderSceneCenterX = dockScreenCenterX
+        folderSceneCenterY = dockScreenCenterY
         positionFolderScene()
         showFolderBackdrop()
         mainSceneVisible = false
@@ -238,10 +293,7 @@ Window {
             ringWidget.resetToMainView()
         }
         startupMessageVisible = shouldShowStartupMessage()
-        var targetX = cx - width / 2
-        var targetY = cy - height / 2
-        x = Math.max(0, Math.min(targetX, Screen.width - width))
-        y = Math.max(0, Math.min(targetY, Screen.height - height))
+        setDockCenter(cx, cy)
         snapBackdropResize = false
         playMainRingReveal()
     }
@@ -253,8 +305,7 @@ Window {
         if (ringWidget) {
             ringWidget.resetToMainView()
         }
-        x = Math.max(0, Math.round((Screen.width - width) / 2))
-        y = Math.max(0, Math.round((Screen.height - height) / 2))
+        setDockCenter(Screen.width / 2, Screen.height / 2)
         startupMessageVisible = shouldShowStartupMessage()
         snapBackdropResize = false
         playMainRingReveal()
@@ -529,7 +580,8 @@ Window {
     Item {
         id: stage
         z: 1
-        anchors.centerIn: parent
+        x: Math.round(overlay.renderLeft - (width / 2))
+        y: Math.round(overlay.renderTop - (height / 2))
         width: overlay.targetStageWidth
         height: overlay.targetStageHeight
         opacity: overlay.mainSceneVisible ? 1.0 : 0.0
@@ -786,6 +838,9 @@ Window {
         }
     }
 
+    onTargetStageWidthChanged: setDockCenter(dockScreenCenterX, dockScreenCenterY)
+    onTargetStageHeightChanged: setDockCenter(dockScreenCenterX, dockScreenCenterY)
+
     MouseArea {
         z: 0
         anchors.fill: parent
@@ -802,7 +857,4 @@ Window {
             overlay.hideOverlay()
         }
     }
-
-    onWidthChanged: clampWindowToScreen()
-    onHeightChanged: clampWindowToScreen()
 }

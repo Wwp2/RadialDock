@@ -331,33 +331,6 @@ Item {
         return bestIndex
     }
 
-    function groupPanelCenterX() {
-        return groupAnchorX
-    }
-
-    function groupPanelCenterY() {
-        return groupAnchorY
-    }
-
-    function clampGroupAnchor(ax, ay) {
-        var half = groupPanelSize / 2
-        var minX = half
-        var maxX = width - half
-        var minY = half
-        var maxY = height - half
-        if (maxX < minX) {
-            ax = width / 2
-        } else {
-            ax = Math.max(minX, Math.min(maxX, ax))
-        }
-        if (maxY < minY) {
-            ay = height / 2
-        } else {
-            ay = Math.max(minY, Math.min(maxY, ay))
-        }
-        return { x: ax, y: ay }
-    }
-
     function groupSlotPosition(slotIndex, total) {
         var count = Math.max(total, 1)
         var angle = angleForSlot(slotIndex, count) - Math.PI / 2
@@ -635,9 +608,8 @@ Item {
         recentRadialOpen = false
         recentFolderPath = ""
         var pos = slotPosition(itemIndex)
-        var clamped = clampGroupAnchor(pos.x, pos.y)
-        groupAnchorX = clamped.x
-        groupAnchorY = clamped.y
+        groupAnchorX = pos.x
+        groupAnchorY = pos.y
         groupTitle = entry.label || "Group"
         groupEntries = entry.children || []
         openGroupIndex = itemIndex
@@ -658,16 +630,17 @@ Item {
         var folderPath = entry.path
         settingsOpen = false
         var pos = slotPosition(itemIndex)
-        var clamped = clampGroupAnchor(pos.x, pos.y)
-        groupAnchorX = clamped.x
-        groupAnchorY = clamped.y
+        groupAnchorX = pos.x
+        groupAnchorY = pos.y
         groupTitle = entry.label || "Recent"
-        groupEntries = appModel.cachedFolderEntries ? appModel.cachedFolderEntries(folderPath) : []
+        groupEntries = appModel.listFolderEntries
+                     ? appModel.listFolderEntries(folderPath, true)
+                     : (appModel.cachedFolderEntries ? appModel.cachedFolderEntries(folderPath) : [])
         openGroupIndex = itemIndex
         recentRadialOpen = true
         recentFolderPath = folderPath
         groupOpen = true
-        if (appModel.requestFolderEntries) {
+        if (!appModel.listFolderEntries && appModel.requestFolderEntries) {
             appModel.requestFolderEntries(folderPath, true)
         }
     }
@@ -1546,8 +1519,8 @@ Item {
         id: groupOverlay
         width: ring.groupPanelSize
         height: ring.groupPanelSize
-        x: ring.groupPanelCenterX() - (width / 2)
-        y: ring.groupPanelCenterY() - (height / 2)
+        x: ring.groupAnchorX - (width / 2)
+        y: ring.groupAnchorY - (height / 2)
         visible: ring.groupOpen
         opacity: ring.groupOpen ? 1.0 : 0.0
         z: 290

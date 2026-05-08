@@ -18,7 +18,7 @@ flowchart TD
 
     A --> B["Install and use RadialDock<br/>no coding"]
     B --> J["Run build script<br/>root/build.ps1 with powershell.
-    This creates a simple .exe that you can use to install the Dock."]
+    This creates a simple .exe that you can use to install and uninstall the Dock."]
     J --> K["Output appears in<br/>dist/RadialDockInstaller-&lt;version&gt;.exe"]
 
     A --> E["Change Python or QML code"]

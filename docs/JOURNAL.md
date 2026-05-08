@@ -16,6 +16,24 @@
 
 ## Change Log
 
+### 2026-05-08 - Change 90 (Group render area decoupling + Recent jitter fix)
+
+- Removed inward clamping from group sub-ring anchors so opened groups stay centered on the selected main-ring icon instead of being shifted back toward the dock center.
+- Refactored `ui/Main.qml` so the dock's screen center is tracked separately from the transparent render/input window extents.
+- Positioned the main stage from the render extents instead of relying on `anchors.centerIn`, which keeps the dock center independent from the window's final width and height.
+- Updated folder/settings scene positioning to use the stable dock center rather than the overlay window center.
+- Increased the reserved main render margin so max-size group panels, including the Windows `Recent` radial group, fit without resizing or moving the native overlay window during group open/close.
+- Changed the `Recent` radial group path to load live Recent entries before opening, avoiding the empty-cache `180px` panel opening followed by a live-entry `280px` resize.
+- Result: group clipping is fixed, group sub-rings remain centered on their source icon, and the `Recent` group no longer jitters the main dock when opening or closing.
+
+### 2026-05-08 - Change 89 (GitHub onboarding and generated installer cleanup)
+
+- Clarified the README's usage paths for normal users, source developers, package builders, and local reinstall testing.
+- Added a Mermaid flowchart that points to the relevant script locations, including `dev.bat`, `dev.ps1`, `scripts/dev_watch.py`, `build.ps1`, `rebuild_reinstall.sh`, and generated installer output under `dist/`.
+- Documented that non-coder users should use the packaged installer when available, while developers can create it locally with `build.ps1`.
+- Documented that the one-command reinstall helper performs a silent uninstall/install cycle, creates shortcuts, enables startup, and launches the app afterward.
+- Kept generated build outputs such as `build/` and `dist/` treated as local artifacts so oversized installer EXEs are not pushed to GitHub.
+
 ### 2026-04-06 - Change 88 (Non-image icons now resolve placeholder-first in the background)
 
 - Changed `iconDataUrl()` so non-image file, folder, and shortcut icons no longer block the UI on first resolve.
