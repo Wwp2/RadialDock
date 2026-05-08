@@ -163,6 +163,7 @@ Item {
             closeAfterLaunchSwitch.checked = !!appModel.closeAfterLaunch
             automaticAlignmentSwitch.checked = !!appModel.automaticItemAlignment
             showFileExtensionsSwitch.checked = !!appModel.showFileExtensions
+            startupMessageSwitch.checked = !!appModel.startupMessageEnabled
         }
         if (typeof backend !== "undefined" && backend && startupOnBootSwitch) {
             startupOnBootSwitch.checked = !!backend.launchOnStartupEnabled
@@ -199,6 +200,9 @@ Item {
             settings.refreshFromModel()
         }
         function onShowFileExtensionsChanged() {
+            settings.refreshFromModel()
+        }
+        function onStartupMessageEnabledChanged() {
             settings.refreshFromModel()
         }
         function onHotkeyChanged() {
@@ -865,6 +869,40 @@ Item {
 
             Text {
                 text: "On = create a Windows startup shortcut. Off = remove it."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                width: parent.width - 270
+                wrapMode: Text.WordWrap
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        Row {
+            width: parent.width
+            height: 42
+            spacing: 10
+
+            Text {
+                text: "Display startup popup"
+                color: "#D7E8F4"
+                font.pixelSize: 12
+                width: 150
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Switch {
+                id: startupMessageSwitch
+                checked: true
+                anchors.verticalCenter: parent.verticalCenter
+                onToggled: {
+                    if (typeof appModel !== "undefined" && appModel) {
+                        appModel.startupMessageEnabled = checked
+                    }
+                }
+            }
+
+            Text {
+                text: "On = show the quick tips popup when the dock opens. Off = keep it hidden."
                 color: "#8DA7B9"
                 font.pixelSize: 10
                 width: parent.width - 270

@@ -709,18 +709,20 @@ Window {
             id: startupCard
             z: 1800
             visible: overlay.startupMessageVisible
+            property int contentMargin: 16
             anchors.centerIn: parent
             width: Math.min(parent.width - 36, 360)
-            height: 312
+            height: Math.ceil(startupContent.implicitHeight + (contentMargin * 2))
             radius: 16
             color: "#F41A2430"
             border.color: "#88D5E6F4"
             border.width: 1
 
             Column {
+                id: startupContent
                 z: 1
                 anchors.fill: parent
-                anchors.margins: 16
+                anchors.margins: startupCard.contentMargin
                 spacing: 10
 
                 Text {
@@ -748,7 +750,7 @@ Window {
 
                 Text {
                     width: parent.width
-                    text: "The Recent tile opens your Windows recent items in a radial list. If you remove it, use Settings → Restore Recent group."
+                    text: "To get started, drag files, folders, or shortcuts from Explorer into the ring to add them. Drag a pinned item out of the ring to remove it."
                     color: "#D5E7F3"
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap
@@ -756,9 +758,9 @@ Window {
 
                 Text {
                     width: parent.width
-                    text: "To get started, drag files, folders, or shortcuts from Explorer into the ring to add them. Drag a pinned item out of the ring to remove it."
-                    color: "#D5E7F3"
-                    font.pixelSize: 11
+                    text: "Right click works as a back button. Press Esc, right click or click outside the menu to close it."
+                    color: "#A8C1D4"
+                    font.pixelSize: 10
                     wrapMode: Text.WordWrap
                 }
 
@@ -772,9 +774,9 @@ Window {
 
                 Text {
                     width: parent.width
-                    text: "Right click works as a back button. Press Esc, right click or click outside the menu to close it."
-                    color: "#A8C1D4"
-                    font.pixelSize: 10
+                    text: "You can create a 'Recent' group that automatically displays recent files and folder that you have used in windows. To create one, go to Settings > Restore Recent group."
+                    color: "#D5E7F3"
+                    font.pixelSize: 11
                     wrapMode: Text.WordWrap
                 }
 
