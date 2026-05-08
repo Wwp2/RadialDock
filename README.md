@@ -16,10 +16,10 @@ https://github.com/user-attachments/assets/e17b115a-a539-4d00-aa30-3c99df3c2667
 flowchart TD
     A["What do you want to do?"]
 
-    A --> B["Install and use RadialDock<br/>no coding"]
+    A --> B["Quickly Install and use RadialDock"]
     B --> J["Run build script<br/>root/build.ps1 with powershell.
     This creates a simple .exe that you can use to install and uninstall the Dock."]
-    J --> K["Output appears in<br/>dist/RadialDockInstaller-&lt;version&gt;.exe"]
+    J --> K["The .exe appears in<br/>dist/RadialDockInstaller-&lt;version&gt;.exe"]
 
     A --> E["Change Python or QML code"]
     E --> F["Set up the source environment<br/>repo root + .venv
