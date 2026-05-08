@@ -116,18 +116,7 @@ class DockItem:
 
 
 def default_ring_items() -> list[DockItem]:
-    root = recent_items.get_shell_recent_folder()
-    if root is None or not root.is_dir():
-        return []
-    return [
-        DockItem(
-            path=str(root.resolve()),
-            label="Recent",
-            kind="folder",
-            color=DEFAULT_ITEM_COLORS[0],
-            angle=0.0,
-        )
-    ]
+    return []
 
 
 @dataclass
@@ -446,29 +435,8 @@ class AppModel(QObject):
     def _apply_recent_tile_migration_if_needed(self) -> None:
         if self.settings.recent_tile_migration_completed:
             return
-        if self._ring_contains_recent_folder_tile(self.settings.items):
-            self.settings.recent_tile_migration_completed = True
-            self._save_settings(self.settings)
-            return
-
-        root = recent_items.get_shell_recent_folder()
-        if root is None or not root.is_dir():
-            self.settings.recent_tile_migration_completed = True
-            self._save_settings(self.settings)
-            return
-
-        tile = DockItem(
-            path=str(root.resolve()),
-            label="Recent",
-            kind="folder",
-            color=DEFAULT_ITEM_COLORS[0],
-            angle=0.0,
-        )
-        self.settings.items = [*self.settings.items, tile]
         self.settings.recent_tile_migration_completed = True
         self._save_settings(self.settings)
-        self._sync_folder_refresh_state_map(self.settings.items)
-        self.ringItemsChanged.emit()
 
     def _recent_shortcut_display_label(self, lnk_path: Path, target_path: str) -> str:
         t = (target_path or "").strip()
