@@ -32,8 +32,9 @@ cache/
 *.log
 
 DevPlans/
-.github/
 
-.radialdock/config.json
-src/radialdock.egg-info/*
+.radialdock/
+.cursor/
+
+src/radialdock.egg-info/
 .vscode/settings.json

@@ -33,6 +33,8 @@ Item {
     property string currentFolderPath: ""
     property string folderTitle: ""
     property var folderEntries: []
+    property bool recentRadialOpen: false
+    property string recentFolderPath: ""
     property int radialItemMoveBaseDuration: 500
     property real animationSpeedScale: 0.2
     property bool animationsEnabled: true
@@ -87,6 +89,19 @@ Item {
             return 0
         }
         return Math.max(1, Math.round(baseDuration * animationSpeedScale))
+    }
+
+    function folderPathsEqual(a, b) {
+        if (!a || !b) {
+            return false
+        }
+        if (a === b) {
+            return true
+        }
+        if (Qt.platform.os === "windows") {
+            return String(a).toLowerCase() === String(b).toLowerCase()
+        }
+        return false
     }
 
     ListModel {
@@ -324,6 +339,25 @@ Item {
         return groupAnchorY
     }
 
+    function clampGroupAnchor(ax, ay) {
+        var half = groupPanelSize / 2
+        var minX = half
+        var maxX = width - half
+        var minY = half
+        var maxY = height - half
+        if (maxX < minX) {
+            ax = width / 2
+        } else {
+            ax = Math.max(minX, Math.min(maxX, ax))
+        }
+        if (maxY < minY) {
+            ay = height / 2
+        } else {
+            ay = Math.max(minY, Math.min(maxY, ay))
+        }
+        return { x: ax, y: ay }
+    }
+
     function groupSlotPosition(slotIndex, total) {
         var count = Math.max(total, 1)
         var angle = angleForSlot(slotIndex, count) - Math.PI / 2
@@ -538,6 +572,8 @@ Item {
             return
         }
         groupOpen = false
+        recentRadialOpen = false
+        recentFolderPath = ""
         settingsOpen = true
     }
 
@@ -549,6 +585,8 @@ Item {
         groupTitle = ""
         groupEntries = []
         openGroupIndex = -1
+        recentRadialOpen = false
+        recentFolderPath = ""
     }
 
     function toggleGroupEditMode() {
@@ -594,16 +632,50 @@ Item {
         if (!entry || entry.kind !== "group") {
             return
         }
+        recentRadialOpen = false
+        recentFolderPath = ""
         var pos = slotPosition(itemIndex)
-        groupAnchorX = pos.x
-        groupAnchorY = pos.y
+        var clamped = clampGroupAnchor(pos.x, pos.y)
+        groupAnchorX = clamped.x
+        groupAnchorY = clamped.y
         groupTitle = entry.label || "Group"
         groupEntries = entry.children || []
         openGroupIndex = itemIndex
         groupOpen = true
     }
 
+    function openRecentRadialAtIndex(itemIndex) {
+        var entry = modelEntryAt(itemIndex)
+        if (!entry || entry.kind !== "folder" || !entry.path) {
+            return
+        }
+        if (typeof appModel === "undefined" || !appModel || !appModel.isShellRecentFolderPath) {
+            return
+        }
+        if (!appModel.isShellRecentFolderPath(entry.path)) {
+            return
+        }
+        var folderPath = entry.path
+        settingsOpen = false
+        var pos = slotPosition(itemIndex)
+        var clamped = clampGroupAnchor(pos.x, pos.y)
+        groupAnchorX = clamped.x
+        groupAnchorY = clamped.y
+        groupTitle = entry.label || "Recent"
+        groupEntries = appModel.cachedFolderEntries ? appModel.cachedFolderEntries(folderPath) : []
+        openGroupIndex = itemIndex
+        recentRadialOpen = true
+        recentFolderPath = folderPath
+        groupOpen = true
+        if (appModel.requestFolderEntries) {
+            appModel.requestFolderEntries(folderPath, true)
+        }
+    }
+
     function moveGroupEntryToMain(groupIndex, px, py) {
+        if (recentRadialOpen) {
+            return
+        }
         if (groupIndex < 0 || groupIndex >= groupEntries.length) {
             return
         }
@@ -762,6 +834,8 @@ Item {
         currentFolderPath = ""
         folderTitle = ""
         folderEntries = []
+        recentRadialOpen = false
+        recentFolderPath = ""
         resetDragState()
     }
 
@@ -793,7 +867,12 @@ Item {
             return
         }
         if (entry.kind === "folder") {
-            openFolderPath(entry.path, entry.label || entry.path, false)
+            if (typeof appModel !== "undefined" && appModel && appModel.isShellRecentFolderPath
+                    && appModel.isShellRecentFolderPath(entry.path)) {
+                openRecentRadialAtIndex(itemIndex)
+            } else {
+                openFolderPath(entry.path, entry.label || entry.path, false)
+            }
             return
         }
         if (typeof appModel !== "undefined" && appModel && appModel.openPath) {
@@ -984,6 +1063,10 @@ Item {
             ring.loadFromSettings()
         }
         function onFolderEntriesReady(folderPath, entries) {
+            if (ring.recentRadialOpen && ring.folderPathsEqual(ring.recentFolderPath, folderPath)) {
+                ring.groupEntries = entries
+                return
+            }
             if (!ring.folderOpen || ring.currentFolderPath !== folderPath) {
                 return
             }
@@ -1640,7 +1723,8 @@ Item {
                             ring.activateGroupEntry(index)
                             return
                         }
-                        if (!ring.isPointInsideOpenGroup(ringPoint.x, ringPoint.y)) {
+                        if (!ring.recentRadialOpen
+                                && !ring.isPointInsideOpenGroup(ringPoint.x, ringPoint.y)) {
                             ring.moveGroupEntryToMain(index, ringPoint.x, ringPoint.y)
                         }
                     }

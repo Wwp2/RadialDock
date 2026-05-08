@@ -704,6 +704,30 @@ Item {
 
         Row {
             width: parent.width
+            height: 42
+            spacing: 8
+
+            ActionButton {
+                text: "Restore Recent group"
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: {
+                    if (typeof appModel !== "undefined" && appModel && appModel.ensureRecentFolderTile) {
+                        appModel.ensureRecentFolderTile()
+                    }
+                }
+            }
+            Text {
+                text: "Adds the Windows Recent folder tile if it is not on the ring (safe to click if it already exists)."
+                color: "#8DA7B9"
+                font.pixelSize: 10
+                width: parent.width - 220
+                wrapMode: Text.WordWrap
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        Row {
+            width: parent.width
             height: 30
             spacing: 8
 

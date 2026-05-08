@@ -29,6 +29,7 @@ from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileIconProvider
 
 from radialdock.cache import ThumbnailCache
+from radialdock import recent_items
 from radialdock.shell_open import open_path
 
 try:
@@ -115,7 +116,18 @@ class DockItem:
 
 
 def default_ring_items() -> list[DockItem]:
-    return []
+    root = recent_items.get_shell_recent_folder()
+    if root is None or not root.is_dir():
+        return []
+    return [
+        DockItem(
+            path=str(root.resolve()),
+            label="Recent",
+            kind="folder",
+            color=DEFAULT_ITEM_COLORS[0],
+            angle=0.0,
+        )
+    ]
 
 
 @dataclass
@@ -132,6 +144,7 @@ class Settings:
     folder_compact_threshold: int = DEFAULT_FOLDER_COMPACT_THRESHOLD
     folder_cache: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     items: list[DockItem] = field(default_factory=default_ring_items)
+    recent_tile_migration_completed: bool = False
 
 
 @dataclass
@@ -230,6 +243,7 @@ class AppModel(QObject):
         )
         self._app_version = resolve_app_version()
         self._sync_folder_refresh_state_map(self.settings.items, emit=False)
+        self._apply_recent_tile_migration_if_needed()
 
     def _load_settings(self) -> Settings:
         self.paths.config_dir.mkdir(parents=True, exist_ok=True)
@@ -265,6 +279,9 @@ class AppModel(QObject):
                 ),
                 folder_cache=self._sanitize_folder_cache(raw.get("folder_cache", {})),
                 items=items,
+                recent_tile_migration_completed=bool(
+                    raw.get("recent_tile_migration_completed", False)
+                ),
             )
         except (json.JSONDecodeError, OSError):
             settings = Settings(items=default_ring_items())
@@ -341,9 +358,18 @@ class AppModel(QObject):
         if not isinstance(value, dict):
             return {}
 
+        recent_root = recent_items.get_shell_recent_folder()
+        recent_norm = (
+            recent_items.normalize_folder_path_str(recent_root)
+            if recent_root is not None
+            else ""
+        )
+
         sanitized: dict[str, list[dict[str, str]]] = {}
         for folder_path, raw_entries in value.items():
             if not isinstance(folder_path, str) or not isinstance(raw_entries, list):
+                continue
+            if recent_norm and recent_items.normalize_folder_path_str(folder_path) == recent_norm:
                 continue
             entries: list[dict[str, str]] = []
             for raw_entry in raw_entries[:500]:
@@ -363,6 +389,166 @@ class AppModel(QObject):
                 )
             sanitized[folder_path] = entries
         return sanitized
+
+    def _is_recent_folder_path(self, folder: Path) -> bool:
+        root = recent_items.get_shell_recent_folder()
+        if root is None:
+            return False
+        try:
+            return recent_items.paths_refer_to_same_folder(folder, root)
+        except OSError:
+            return False
+
+    def _is_recent_folder_string(self, folder_path: str) -> bool:
+        if not folder_path:
+            return False
+        try:
+            return self._is_recent_folder_path(Path(folder_path))
+        except OSError:
+            return False
+
+    def _ring_contains_recent_folder_tile(self, items: list[DockItem]) -> bool:
+        root = recent_items.get_shell_recent_folder()
+        if root is None:
+            return False
+
+        def walk(entries: list[DockItem]) -> bool:
+            for item in entries:
+                if item.kind == "folder" and item.path:
+                    if recent_items.paths_refer_to_same_folder(item.path, root):
+                        return True
+                if item.children and walk(item.children):
+                    return True
+            return False
+
+        return walk(items)
+
+    @Slot()
+    def ensureRecentFolderTile(self) -> None:
+        """Append a shell Recent folder tile if missing. No-op if already present or Recent dir unavailable."""
+        if self._ring_contains_recent_folder_tile(self.settings.items):
+            return
+        root = recent_items.get_shell_recent_folder()
+        if root is None or not root.is_dir():
+            return
+        tile = DockItem(
+            path=str(root.resolve()),
+            label="Recent",
+            kind="folder",
+            color=DEFAULT_ITEM_COLORS[0],
+            angle=0.0,
+        )
+        self.settings.items = [*self.settings.items, tile]
+        self._save_settings(self.settings)
+        self._sync_folder_refresh_state_map(self.settings.items)
+        self.ringItemsChanged.emit()
+
+    def _apply_recent_tile_migration_if_needed(self) -> None:
+        if self.settings.recent_tile_migration_completed:
+            return
+        if self._ring_contains_recent_folder_tile(self.settings.items):
+            self.settings.recent_tile_migration_completed = True
+            self._save_settings(self.settings)
+            return
+
+        root = recent_items.get_shell_recent_folder()
+        if root is None or not root.is_dir():
+            self.settings.recent_tile_migration_completed = True
+            self._save_settings(self.settings)
+            return
+
+        tile = DockItem(
+            path=str(root.resolve()),
+            label="Recent",
+            kind="folder",
+            color=DEFAULT_ITEM_COLORS[0],
+            angle=0.0,
+        )
+        self.settings.items = [*self.settings.items, tile]
+        self.settings.recent_tile_migration_completed = True
+        self._save_settings(self.settings)
+        self._sync_folder_refresh_state_map(self.settings.items)
+        self.ringItemsChanged.emit()
+
+    def _recent_shortcut_display_label(self, lnk_path: Path, target_path: str) -> str:
+        t = (target_path or "").strip()
+        if t:
+            name = Path(t).name
+            if name:
+                return name
+        return lnk_path.stem
+
+    def _recent_entry_for_lnk(self, lnk_path: Path) -> dict[str, str] | None:
+        lnk_str = str(lnk_path)
+        _icon, _idx, target_path = self._read_shortcut_metadata(lnk_str)
+        if not (target_path or "").strip():
+            return {
+                "path": lnk_str,
+                "label": lnk_path.stem,
+                "kind": "shortcut",
+                "icon": "",
+            }
+        t = Path(target_path)
+        try:
+            if t.exists():
+                if t.is_dir():
+                    return {
+                        "path": str(t.resolve()),
+                        "label": t.name,
+                        "kind": "folder",
+                        "icon": "",
+                    }
+                kind = self._kind_for_path(t)
+                return {
+                    "path": str(t.resolve()),
+                    "label": t.name,
+                    "kind": kind,
+                    "icon": "",
+                }
+        except OSError:
+            pass
+
+        tp = target_path.strip()
+        lower = tp.lower()
+        if lower.endswith((".lnk", ".url")):
+            kind = "shortcut"
+        else:
+            kind = "file"
+            try:
+                if Path(tp).exists() and Path(tp).is_dir():
+                    kind = "folder"
+            except OSError:
+                pass
+        return {
+            "path": tp,
+            "label": self._recent_shortcut_display_label(lnk_path, tp),
+            "kind": kind,
+            "icon": "",
+        }
+
+    def _build_recent_folder_entries(self, folder: Path) -> list[dict[str, str]]:
+        root = recent_items.get_shell_recent_folder()
+        if root is None or not recent_items.paths_refer_to_same_folder(folder, root):
+            return []
+        try:
+            lnks = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".lnk"]
+        except OSError:
+            return []
+
+        scored: list[tuple[Path, float]] = []
+        for lnk in lnks:
+            try:
+                scored.append((lnk, lnk.stat().st_mtime))
+            except OSError:
+                continue
+        scored.sort(key=lambda pair: pair[1], reverse=True)
+
+        entries: list[dict[str, str]] = []
+        for lnk_path, _ in scored[: recent_items.RECENT_MAX_ITEMS]:
+            row = self._recent_entry_for_lnk(lnk_path)
+            if row is not None:
+                entries.append(row)
+        return entries
 
     def _default_folder_refresh_state(self) -> str:
         return "pending" if self.settings.automatic_folder_refresh else "disabled"
@@ -620,6 +806,7 @@ class AppModel(QObject):
                 "animation_speed_scale": self.settings.animation_speed_scale,
                 "animations_enabled": self.settings.animations_enabled,
                 "folder_compact_threshold": self.settings.folder_compact_threshold,
+                "recent_tile_migration_completed": self.settings.recent_tile_migration_completed,
             },
             "includes_items": bool(include_items),
         }
@@ -666,6 +853,12 @@ class AppModel(QObject):
         )
         self.settings.folder_compact_threshold = self._sanitize_compact_threshold(
             settings_payload.get("folder_compact_threshold", self.settings.folder_compact_threshold)
+        )
+        self.settings.recent_tile_migration_completed = bool(
+            settings_payload.get(
+                "recent_tile_migration_completed",
+                self.settings.recent_tile_migration_completed,
+            )
         )
 
         ring_changed = False
@@ -721,6 +914,10 @@ class AppModel(QObject):
     def cachedFolderEntries(self, folder_path: str) -> list[dict[str, str]]:
         cached_entries = self.settings.folder_cache.get(folder_path, [])
         return [dict(entry) for entry in cached_entries]
+
+    @Slot(str, result=bool)
+    def isShellRecentFolderPath(self, path: str) -> bool:
+        return self._is_recent_folder_string(path)
 
     @Slot(str, result=str)
     def folderRefreshState(self, folder_path: str) -> str:
@@ -856,8 +1053,25 @@ class AppModel(QObject):
             return
 
         if not self.settings.automatic_folder_refresh:
-            self._set_folder_refresh_state(folder_path, "disabled")
-            self.folderEntriesReady.emit(folder_path, self.settings.folder_cache.get(folder_path, []))
+            if not self._is_recent_folder_string(folder_path):
+                self._set_folder_refresh_state(folder_path, "disabled")
+                self.folderEntriesReady.emit(
+                    folder_path,
+                    self.settings.folder_cache.get(folder_path, []),
+                )
+                return
+
+        if self._is_recent_folder_string(folder_path):
+            self._set_folder_refresh_state(folder_path, "checking")
+            try:
+                folder = Path(folder_path)
+                if not folder.exists() or not folder.is_dir():
+                    entries: list[dict[str, str]] = []
+                else:
+                    entries = self._build_folder_entries(folder, refresh_on_open=refresh_on_open)
+            except OSError:
+                entries = []
+            self._handle_folder_entries_resolved(folder_path, entries)
             return
 
         self._set_folder_refresh_state(folder_path, "checking")
@@ -894,9 +1108,10 @@ class AppModel(QObject):
         else:
             normalized_entries = []
 
-        if self.settings.folder_cache.get(folder_path) != normalized_entries:
-            self.settings.folder_cache[folder_path] = normalized_entries
-            self._save_settings(self.settings)
+        if not self._is_recent_folder_string(folder_path):
+            if self.settings.folder_cache.get(folder_path) != normalized_entries:
+                self.settings.folder_cache[folder_path] = normalized_entries
+                self._save_settings(self.settings)
 
         self._set_folder_refresh_state(folder_path, "checked")
         self.folderEntriesReady.emit(folder_path, normalized_entries)
@@ -1366,6 +1581,8 @@ class AppModel(QObject):
         return folder_paths
 
     def _build_folder_entries(self, folder: Path, refresh_on_open: bool) -> list[dict[str, str]]:
+        if self._is_recent_folder_path(folder):
+            return self._build_recent_folder_entries(folder)
         entries: list[dict[str, str]] = []
         children = sorted(
             folder.iterdir(),
@@ -1567,7 +1784,8 @@ class AppModel(QObject):
     def listFolderEntries(self, folder_path: str, refresh_on_open: bool) -> list[dict[str, str]]:
         folder = Path(folder_path)
         if not self.settings.automatic_folder_refresh:
-            return self.settings.folder_cache.get(folder_path, [])
+            if not self._is_recent_folder_string(folder_path):
+                return self.settings.folder_cache.get(folder_path, [])
 
         if not folder.exists() or not folder.is_dir():
             return []
@@ -1577,9 +1795,10 @@ class AppModel(QObject):
         except OSError:
             return []
 
-        if self.settings.folder_cache.get(folder_path) != entries:
-            self.settings.folder_cache[folder_path] = entries
-            self._save_settings(self.settings)
+        if not self._is_recent_folder_string(folder_path):
+            if self.settings.folder_cache.get(folder_path) != entries:
+                self.settings.folder_cache[folder_path] = entries
+                self._save_settings(self.settings)
         return entries
 
     hotkey = Property(

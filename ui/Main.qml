@@ -659,7 +659,7 @@ Window {
             visible: overlay.startupMessageVisible
             anchors.centerIn: parent
             width: Math.min(parent.width - 36, 360)
-            height: 292
+            height: 312
             radius: 16
             color: "#F41A2430"
             border.color: "#88D5E6F4"
@@ -689,6 +689,14 @@ Window {
                 Text {
                     width: parent.width
                     text: "Default launch shortcut: Ctrl+Space. You can change it in the Settings panel by clicking the center of the radial menu."
+                    color: "#D5E7F3"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+
+                Text {
+                    width: parent.width
+                    text: "The Recent tile opens your Windows recent items in a radial list. If you remove it, use Settings → Restore Recent group."
                     color: "#D5E7F3"
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap

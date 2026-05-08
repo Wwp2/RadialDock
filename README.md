@@ -1,189 +1,109 @@
-# Radial Dock Launcher (Windows 11)
+# RadialDock
 
-RadialDock is a Windows launcher overlay built with PySide6 and Qt Quick. It opens as a radial menu, lets you pin files, folders, apps, and shortcuts, and is designed for fast mouse-first launching.
+## Project overview
 
-https://github.com/user-attachments/assets/e17b115a-a539-4d00-aa30-3c99df3c2667
+**RadialDock** is a Windows launcher that shows a **radial menu** near the cursor. You pin files, folders, apps, and shortcuts on the ring, open nested folders and groups, and adjust behavior from an in-app settings panel.
 
-## What It Does
+**Tech stack:** **Python** application using **PySide6** (Qt 6) with the **Qt Quick** UI written in **QML** (`ui/`). Windows-specific pieces use the Win32 API and shell COM where needed (`pywin32`).
 
-- Opens the dock with a global hotkey near the cursor
-- Lets you drag files, folders, and shortcuts in from Explorer
-- Supports folders, groups, thumbnail previews, and shortcut-aware icons
-- Includes a settings panel for shortcut capture, refresh behavior, startup behavior, backups, and more
+---
 
-## Prerequisites
+## Quick start (developers)
 
-- Windows 11
-- Python 3.13.x for packaged installer builds
+1. **Clone** this repository.
 
-## Build Installer
+2. **Create a virtualenv and install the package in editable mode** (from the repo root):
 
-Use this when you want the packaged installer EXE and a GUI installer (the installer also has easy 'autorun on startup' setup):
+   ```powershell
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   python -m pip install -r requirements.txt
+   python -m pip install -e .
+   ```
+
+3. **Run the dev watcher** (recommended while changing Python or QML):
+
+   - **Double-click** [`dev.bat`](dev.bat) in the repo root, **or**
+   - In PowerShell: `.\dev.ps1`, **or**
+   - `python scripts/dev_watch.py`
+
+   [`dev.bat`](dev.bat) forwards all arguments to [`dev.ps1`](dev.ps1).
+
+4. **Open the dock:** press **`Ctrl+Space`** (default global shortcut).  
+   **Right-click** is the universal **Back** action inside the overlay.
+
+---
+
+## Development workflow
+
+### Auto-restart (not hot reload)
+
+[`scripts/dev_watch.py`](scripts/dev_watch.py) watches `src/radialdock/` and `ui/` for `.py` / `.qm` / `.qml` changes and **restarts** `python -m radialdock.app`. Qt Quick does not reliably hot-reload the running scene; process restart is the supported workflow.
+
+Optional **`--debounce`** (seconds after the last save before restart) and arguments after **`--`** are forwarded to the app (e.g. `python scripts/dev_watch.py -- --portable`).
+
+### `RADIALDOCK_DEV`
+
+The watcher sets **`RADIALDOCK_DEV=1`** only on the **child** app process. That **skips the first-run install/manage prompt** so dev restarts are not blocked. It does **not** change hotkeys, settings file location, or persistence. Running `python -m radialdock.app` directly does **not** set this variable.
+
+### Single-instance guard
+
+[`dev.ps1`](dev.ps1) avoids starting a **second** watcher for the **same checkout** if `scripts/dev_watch.py` is already running (matched by normalized absolute path). If that happens, it prints a short message and exits successfully.
+
+Use **`-Force`** to start another watcher anyway (e.g. two terminals):
+
+```powershell
+.\dev.ps1 -Force
+.\dev.bat -Force
+```
+
+Forward app args separately, e.g. `.\dev.ps1 -Force -- --portable`. **`-Force`** is not passed to Python.
+
+---
+
+## Project structure
+
+| Path | Role |
+|------|------|
+| [`src/radialdock/`](src/radialdock/) | Application code: entrypoint, model, hotkey, install helpers, cache, shell integration |
+| [`ui/`](ui/) | Qt Quick (QML) UI |
+| [`scripts/`](scripts/) | Development tools (e.g. [`dev_watch.py`](scripts/dev_watch.py)) |
+| [`docs/`](docs/) | Extra documentation (journals, editor notes, checklists) |
+
+---
+
+## Build / install (short)
+
+**Installer build (Windows):**
 
 ```powershell
 .\build.ps1
 ```
 
-The build:
+Expects **Python 3.13.x** in `.venv`, installs from **`requirements-lock.txt`**, reads **`VERSION.txt`**, and writes **`dist\RadialDockInstaller-<version>.exe`** plus a build info JSON. See script output if the venv Python version is wrong.
 
-- creates or reuses the local `.venv` with Python 3.13.x
-- installs the locked build/runtime packages from `requirements-lock.txt` into that `.venv`
-- reads the version from `VERSION.txt`
-- creates `dist\RadialDockInstaller-<version>.exe`
-- writes `dist\RadialDock-build-info-<version>.json` so build dependency versions can be compared between machines
-
-This keeps the build dependencies out of the user's global Python installation.
-
-If the build says the existing `.venv` is using the wrong Python version, delete `.venv`, install Python 3.13.x, and run the build again.
-
-When installed, the runtime app is copied to:
-
-- `%LocalAppData%\RadialDock\RadialDock.exe`
-
-That installed `RadialDock.exe` is the normal day-to-day launcher binary.
-
-## Rebuild And Reinstall Script
-
-For development, this is the preferred workflow over running uninstall/install commands manually:
+**Rebuild and reinstall the packaged app locally** (Git Bash / shell with `bash`):
 
 ```bash
 ./rebuild_reinstall.sh
 ```
 
-This script:
+Runs `build.ps1`, then silent uninstall/install of the matching installer.
 
-- runs `build.ps1`
-- reads the current version from `VERSION.txt`
-- runs the matching installer with `--uninstall --silent`
-- runs the same installer again with `--install --silent`
+Day-to-day **source development** does not require these unless you are testing the installer.
 
-Because this script calls `build.ps1`, it also uses the locked dependency set from `requirements-lock.txt`.
+---
 
-## How To Use The App
+## Notes
 
-1. Launch the app.
-2. Press `Ctrl+Space` to open the dock.
-3. Drag files, folders, or shortcuts from Explorer into the ring to pin them.
-4. Click the center core to open Settings.
-5. Hold the center core for 2 seconds to toggle `Group Edit Mode`.
+- **Windows focus:** The product targets **Windows** (global hotkey, shell shortcuts, Known Folders). Other platforms are out of scope.
+- **Qt Quick UI:** Layout and interaction live in QML; logic and OS integration live in Python.
+- **Python versions:** **`pyproject.toml`** requires **Python ≥ 3.11** for a normal editable install. **`build.ps1`** currently requires **3.13.x** for installer builds.
+- **Hotkey:** The default **`Ctrl+Space`** may conflict with other apps (IDEs, games). Users can change the shortcut in **Settings** if needed.
+- **Dependencies:** Runtime deps are listed in **`requirements.txt`**. Reproducible installer builds use **`requirements-lock.txt`**.
 
-Main interaction rules:
+---
 
-- `Right click` is the universal back action
-- Clicking a group opens a smaller radial group menu
-- Dragging an item out of an open group moves it back to the main ring
-- Fresh installs start with an empty ring
+## License
 
-## Run The App From Source
-
-1. Create and activate venv in Git Bash:
-
-```bash
-python -m venv .venv
-source .venv/Scripts/activate
-```
-
-2. Install dependencies:
-
-```bash
-python -m pip install -r requirements.txt
-python -m pip install -e .
-```
-
-3. Start app:
-
-```bash
-python -m radialdock.app
-```
-
-4. Press `Ctrl+Space` to toggle the overlay near your cursor.
-
-Basic source-run notes:
-
-- `Right click` is the universal back action
-- Click the center core to open Settings
-- Hold the center core for 2 seconds to toggle `Group Edit Mode`
-- Fresh installs start with an empty ring
-- The more detailed behavior list is in `Feature Summary` below
-- To mirror packaged builds exactly, install `requirements-lock.txt` instead of `requirements.txt`
-
-PowerShell alternative:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -m pip install -e .
-python -m radialdock.app
-```
-
-## Feature Summary
-
-- `Right click` works as a universal back action:
-  - closes the group rename prompt if open
-  - closes an open icon group if open
-  - closes folder sub-view if open
-  - otherwise closes the radial overlay
-- Click the center core to open the settings panel.
-- Hold the center core for 2 seconds to toggle `Group Edit Mode`.
-- In `Group Edit Mode`, drag one ring item onto another to merge them into a named group.
-- In normal mode, clicking a group opens a smaller radial sub-ring on top of the main dock.
-- In normal mode, you can drag an item out of an open group sub-ring and drop it onto the main dock to move it back to the top level.
-- Settings include, but is not limited to:
-  - `Restart App` and `Quit App`
-  - single-file backup export/import
-  - `Automatic Item Alignement`
-  - `Show file extensions`
-  - `Close after launch`
-  - capture-based shortcut picking
-  - `Launch on startup`
-- Image files use cached thumbnail previews as full-bleed visuals in the main ring and tile-mode folder view.
-- Windows `.lnk` and `.url` shortcuts use Windows shell-aware icon extraction.
-- Non-image icons now return a cheap placeholder first and resolve the real Windows icon in the background, so first folder open is less likely to stall on cold boot.
-- Missing image previews load in the background so folder/menu open stays responsive while thumbnails fill in.
-- Folder views open first and load refreshed contents after, while cached-only mode still opens immediately with no new scan.
-- Folder views now open immediately from cached entries when available, then refresh in the background if needed.
-- Folder headers show a small red dot while contents are still being checked and a green dot once that folder has been verified.
-- Automatic refresh checks run in the background after the UI opens.
-- The app does a hidden warm-up after startup to preload icon sources and pinned folder caches.
-- When the startup message is enabled, the startup help appears every time the radial dock is opened until the user turns it off.
-- On app launch, the radial menu opens centered on screen so users immediately see that it is running.
-- Folder sub-view adapts size to item count.
-- If a folder contains more than `50` items, compact list mode is used.
-- Source runs store settings at `%APPDATA%\\RadialDock\\config.json`.
-- Installed runs store settings and cache inside `%LocalAppData%\\RadialDock\\`.
-- `Manual Refresh` runs only the checks when automatic toggle is currently off.
-
-## CLI Modes
-
-- `python -m radialdock.app --portable`
-- `python -m radialdock.app --install`
-- `python -m radialdock.app --uninstall`
-- `python -m radialdock.app --install --silent`
-- `python -m radialdock.app --uninstall --silent`
-
-Install/uninstall supports:
-
-- Windows message-box driven install choices in the packaged EXE
-- Start Menu and desktop shortcuts
-- an `Open after install` choice during install
-- startup shortcut management
-- closing a running installed `RadialDock.exe` automatically before uninstall
-- a `--silent` mode that answers yes to all install questions (desktop shortcut and automatic start) and suppresses installer dialogs
-
-When running from source (`python -m radialdock.app`), install features are still available for development, but the true copy-to-`%LocalAppData%` EXE flow is intended for the packaged build.
-
-## Development Status
-
-- Original step-based MVP plan is complete.
-- Ongoing development is now tracked by versioned fixes/features instead of the original step plan.
-
-## Project Layout
-
-- `src/radialdock/app.py` entry point
-- `src/radialdock/win_hotkey.py` global hotkey integration
-- `src/radialdock/install.py` install/uninstall scaffold
-- `src/radialdock/model.py` app settings/model scaffold
-- `src/radialdock/cache.py` SQLite thumbnail cache scaffold
-- `src/radialdock/shell_open.py` shell open helper
-- `ui/` QML UI components
-- `docs/JOURNAL.md` implementation journal
+See [`LICENSE`](LICENSE).
