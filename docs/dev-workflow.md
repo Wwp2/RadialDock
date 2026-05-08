@@ -1,6 +1,6 @@
 # Development workflow
 
-This page describes how the dev launcher and file watcher work. For clone, venv, and `pip install`, see the [README](../README.md) quick start.
+This page describes how the dev launcher and file watcher work. For clone, venv, and `pip install`, see [Run From Source While Developing](../README.md#run-from-source-while-developing) in the README.
 
 ---
 

@@ -68,7 +68,7 @@ python -m pip install -e .
 python -m radialdock.app
 ```
 
-Live reload / dev watcher (`dev_watch`, `RADIALDOCK_DEV`): see **README → Run The App From Source → Live reload while editing** (canonical).
+Live reload / dev watcher (`dev_watch`, `RADIALDOCK_DEV`): see **README -> Run From Source While Developing** (canonical).
 
 Installer: `.\build.ps1` (requires `assets/`, `ui/`, `VERSION.txt`). Portable: `--portable`.
 

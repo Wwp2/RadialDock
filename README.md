@@ -1,18 +1,97 @@
 # RadialDock
 
-## Project overview
+## Project Overview
 
 **RadialDock** is a Windows launcher that shows a **radial menu** near the cursor. You pin files, folders, apps, and shortcuts on the ring, open nested folders and groups, and adjust behavior from an in-app settings panel.
 
-**Tech stack:** **Python** application using **PySide6** (Qt 6) with the **Qt Quick** UI written in **QML** (`ui/`). Windows-specific pieces use the Win32 API and shell COM where needed (`pywin32`).
+**Tech stack:** Python application using **PySide6** (Qt 6) with the **Qt Quick** UI written in **QML** (`ui/`). Windows-specific pieces use the Win32 API and shell COM where needed (`pywin32`).
+
+https://github.com/user-attachments/assets/e17b115a-a539-4d00-aa30-3c99df3c2667
 
 ---
 
-## Quick start (developers)
+## Which Path Should I Use?
 
-1. **Clone** this repository.
+If you only want to use RadialDock, download the packaged installer EXE. You do **not** need Python, Git, or the source code.
 
-2. **Create a virtualenv and install the package in editable mode** (from the repo root):
+Developers create the packaged installer at `dist/RadialDockInstaller-<version>.exe` by running `build.ps1`. On GitHub, the same EXE should usually be downloaded from the project's Releases/download area; a fresh source checkout may not include `dist/` unless release artifacts are published there.
+
+```mermaid
+flowchart TD
+    A["What do you want to do?"]
+
+    A --> B["Install and use RadialDock<br/>no coding"]
+    B --> J["Run build script<br/>root/build.ps1 with powershell.
+    This creates a simple .exe that you can use to install the Dock."]
+    J --> K["Output appears in<br/>dist/RadialDockInstaller-&lt;version&gt;.exe"]
+
+    A --> E["Change Python or QML code"]
+    E --> F["Set up the source environment<br/>repo root + .venv
+    Build.ps1 also does this if you want a quick start setup."]
+    F --> G["Run the dev launcher<br/>root/dev.bat or root/dev.ps1"]
+    G --> H["Watcher script runs<br/>scripts/dev_watch.py"]
+
+    A --> L["Quickly test a fresh packaged reinstall locally"]
+    L --> M["Run reinstall helper<br/>root/rebuild_reinstall.sh"]
+    M --> N["Builds, silently uninstalls, silently installs,<br/>creates shortcuts, enables startup, and launches the app"]
+```
+
+| Goal | Audience | Use | Location |
+|------|----------|-----|----------|
+| Install and use RadialDock without coding | Normal users / testers | `RadialDockInstaller-<version>.exe` | GitHub Releases/download area, or `dist/` after a developer build |
+| Run from source while editing code | Developers | `dev.bat` or `.\dev.ps1` | Repo root |
+| Run the watcher directly | Developers | `python scripts/dev_watch.py` | `scripts/dev_watch.py` |
+| Build the packaged installer | Developers / release builders | `.\build.ps1` | Repo root, output in `dist/` |
+| Rebuild and reinstall locally | Developers testing packaged installs | `./rebuild_reinstall.sh` | Repo root, run from Git Bash or another Bash shell |
+
+---
+
+## Install From The Packaged EXE
+
+For non-coder users, this is the simplest path:
+
+1. Download `RadialDockInstaller-<version>.exe` from the GitHub Releases/download area.
+2. Download only the EXE, not the source code ZIP, unless you plan to build or run from code.
+3. Run the EXE.
+4. Choose the install options when prompted.
+5. Open the dock with **Ctrl+Space**.
+
+The packaged EXE is self-installing:
+
+- Double-clicking the EXE with no flags opens an install/uninstall prompt when applicable.
+- `--install` installs RadialDock.
+- `--uninstall` removes RadialDock.
+- `--silent` skips prompts and uses the script defaults.
+
+Examples:
+
+The `.\dist\` path below is for developers running commands from the repo root. If you downloaded the EXE somewhere else, double-click it or run it from that download location.
+Replace `<version>` with the version in the actual filename you downloaded or built.
+
+```powershell
+.\dist\RadialDockInstaller-<version>.exe --install
+.\dist\RadialDockInstaller-<version>.exe --uninstall
+.\dist\RadialDockInstaller-<version>.exe --install --silent
+.\dist\RadialDockInstaller-<version>.exe --uninstall --silent
+```
+
+Installed app behavior:
+
+- The installed runtime is copied to `%LocalAppData%\RadialDock\RadialDock.exe`.
+- Interactive install asks whether to create Start Menu and desktop shortcuts.
+- Interactive install asks whether RadialDock should launch when Windows starts.
+- Silent install answers yes to the install choices: shortcuts are created, startup is enabled, and the app launches after install.
+- Uninstall removes the installed runtime, shortcuts, startup shortcut, install marker, config, and cache under `%LocalAppData%\RadialDock`.
+
+---
+
+## Run From Source While Developing
+
+Use this path when you are changing Python or QML and want the app to restart automatically after saves.
+
+1. Clone this repository.
+
+2. Create a virtual environment and install the package in editable mode from the repo root:
 
    ```powershell
    python -m venv .venv
@@ -21,86 +100,112 @@
    python -m pip install -e .
    ```
 
-3. **Run the dev watcher** (recommended while changing Python or QML):
+3. Start the development watcher:
 
-   - **Double-click** [`dev.bat`](dev.bat) in the repo root, **or**
-   - In PowerShell: `.\dev.ps1`, **or**
-   - `python scripts/dev_watch.py`
+   ```powershell
+   .\dev.ps1
+   ```
 
-   [`dev.bat`](dev.bat) forwards all arguments to [`dev.ps1`](dev.ps1).
+   You can also double-click `dev.bat` in the repo root, or run the watcher directly:
 
-4. **Open the dock:** press **`Ctrl+Space`** (default global shortcut).  
-   **Right-click** is the universal **Back** action inside the overlay.
+   ```powershell
+   python scripts/dev_watch.py
+   ```
 
----
+4. Open the dock with **Ctrl+Space**.
 
-## Development workflow
+Development launcher behavior:
 
-### Auto-restart (not hot reload)
+- `dev.bat` is a double-click wrapper that runs `dev.ps1` and forwards arguments.
+- `dev.ps1` uses `.venv\Scripts\python.exe` when it exists; otherwise it falls back to `python` on `PATH`.
+- `dev.ps1` avoids starting a second watcher for the same checkout unless you pass `-Force`.
+- `scripts/dev_watch.py` watches `src/radialdock/` and `ui/` for `.py` and `.qml` changes.
+- The watcher restarts `python -m radialdock.app`; it is restart-on-save, not true hot reload.
+- The watcher sets `RADIALDOCK_DEV=1` only on the child app process so dev restarts do not get blocked by the first-run install/manage prompt.
 
-[`scripts/dev_watch.py`](scripts/dev_watch.py) watches `src/radialdock/` and `ui/` for `.py` / `.qm` / `.qml` changes and **restarts** `python -m radialdock.app`. Qt Quick does not reliably hot-reload the running scene; process restart is the supported workflow.
-
-Optional **`--debounce`** (seconds after the last save before restart) and arguments after **`--`** are forwarded to the app (e.g. `python scripts/dev_watch.py -- --portable`).
-
-### `RADIALDOCK_DEV`
-
-The watcher sets **`RADIALDOCK_DEV=1`** only on the **child** app process. That **skips the first-run install/manage prompt** so dev restarts are not blocked. It does **not** change hotkeys, settings file location, or persistence. Running `python -m radialdock.app` directly does **not** set this variable.
-
-### Single-instance guard
-
-[`dev.ps1`](dev.ps1) avoids starting a **second** watcher for the **same checkout** if `scripts/dev_watch.py` is already running (matched by normalized absolute path). If that happens, it prints a short message and exits successfully.
-
-Use **`-Force`** to start another watcher anyway (e.g. two terminals):
+Common developer commands:
 
 ```powershell
+.\dev.ps1
 .\dev.ps1 -Force
-.\dev.bat -Force
+.\dev.ps1 -- --portable
+.\dev.ps1 -Force -- --portable
 ```
 
-Forward app args separately, e.g. `.\dev.ps1 -Force -- --portable`. **`-Force`** is not passed to Python.
+Arguments after `--` are forwarded to the app. For example, `--portable` stores config under `.radialdock/` in the current working directory.
+
+Stop the watcher with **Ctrl+C** in the watcher console.
 
 ---
 
-## Project structure
+## Build The Packaged Installer
 
-| Path | Role |
-|------|------|
-| [`src/radialdock/`](src/radialdock/) | Application code: entrypoint, model, hotkey, install helpers, cache, shell integration |
-| [`ui/`](ui/) | Qt Quick (QML) UI |
-| [`scripts/`](scripts/) | Development tools (e.g. [`dev_watch.py`](scripts/dev_watch.py)) |
-| [`docs/`](docs/) | Extra documentation (journals, editor notes, checklists) |
-
----
-
-## Build / install (short)
-
-**Installer build (Windows):**
+Use this when you need a new `RadialDockInstaller-<version>.exe`.
 
 ```powershell
 .\build.ps1
 ```
 
-Expects **Python 3.13.x** in `.venv`, installs from **`requirements-lock.txt`**, reads **`VERSION.txt`**, and writes **`dist\RadialDockInstaller-<version>.exe`** plus a build info JSON. See script output if the venv Python version is wrong.
+Build behavior:
 
-**Rebuild and reinstall the packaged app locally** (Git Bash / shell with `bash`):
+- Uses or creates `.venv` under the repo root.
+- Requires Python **3.13.x** for reproducible installer builds.
+- If `.venv` already exists, it must be Python **3.13.x** or the build stops with a clear error.
+- Installs the locked dependency set from `requirements-lock.txt`.
+- Reads the app version from `VERSION.txt`.
+- Writes the installer to `dist/RadialDockInstaller-<version>.exe`.
+- Writes build diagnostics to `dist/RadialDock-build-info-<version>.json`.
+
+Day-to-day source development does not require `build.ps1` unless you are testing packaged installer behavior.
+
+---
+
+## Rebuild And Reinstall Locally
+
+Use this when you are testing the packaged app and want a fresh local reinstall in one command.
+
+Run from Git Bash or another shell with `bash`:
 
 ```bash
 ./rebuild_reinstall.sh
 ```
 
-Runs `build.ps1`, then silent uninstall/install of the matching installer.
+This helper:
 
-Day-to-day **source development** does not require these unless you are testing the installer.
+1. Runs `build.ps1`.
+2. Reads `VERSION.txt`.
+3. Runs the matching `dist/RadialDockInstaller-<version>.exe --uninstall --silent`.
+4. Runs the same installer with `--install --silent`.
+
+Important: because this uses silent install, it creates shortcuts, enables launch on Windows startup, and launches RadialDock after installation.
+
+---
+
+## Project Structure
+
+| Path | Role |
+|------|------|
+| `src/radialdock/` | Application code: entrypoint, model, hotkey, install helpers, cache, shell integration |
+| `ui/` | Qt Quick (QML) UI |
+| `scripts/dev_watch.py` | Development file watcher and app restarter |
+| `dev.bat` | Double-click developer launcher for Windows |
+| `dev.ps1` | PowerShell developer launcher with single-instance guard |
+| `build.ps1` | PyInstaller packaging script |
+| `rebuild_reinstall.sh` | Git Bash helper for packaged rebuild/reinstall testing |
+| `docs/` | Extra development documentation |
+| `build/` | Generated build work files; not needed for normal use |
+| `dist/` | Generated packaged installers and build-info JSON files |
 
 ---
 
 ## Notes
 
-- **Windows focus:** The product targets **Windows** (global hotkey, shell shortcuts, Known Folders). Other platforms are out of scope.
-- **Qt Quick UI:** Layout and interaction live in QML; logic and OS integration live in Python.
-- **Python versions:** **`pyproject.toml`** requires **Python ≥ 3.11** for a normal editable install. **`build.ps1`** currently requires **3.13.x** for installer builds.
-- **Hotkey:** The default **`Ctrl+Space`** may conflict with other apps (IDEs, games). Users can change the shortcut in **Settings** if needed.
-- **Dependencies:** Runtime deps are listed in **`requirements.txt`**. Reproducible installer builds use **`requirements-lock.txt`**.
+- **Windows focus:** The product targets Windows because it uses global hotkeys, shell shortcuts, and Windows Known Folders.
+- **Default hotkey:** **Ctrl+Space** may conflict with other apps. Change it in RadialDock Settings if needed.
+- **Back action:** Right-click is the universal Back action inside the overlay.
+- **Python versions:** `pyproject.toml` allows Python >= 3.11 for normal editable source installs. `build.ps1` requires Python 3.13.x for installer builds.
+- **Dependencies:** Runtime deps are listed in `requirements.txt`. Reproducible installer builds use `requirements-lock.txt`.
+- **Generated files:** `build/` and `dist/` are generated locally. If you are browsing source on GitHub and do not see `dist/`, download the installer from the release/download area instead.
 
 ---
 
