@@ -74,14 +74,15 @@ Item {
                                            ? 460
                                            : Math.max(180, folderGridRows * 104 + 58)
     readonly property int settingsPanelWidth: 420
-    readonly property int settingsPanelHeight: 1000
+    readonly property int settingsPanelHeight: Math.max(390, Math.ceil(settingsPanel.implicitHeight))
+    readonly property int settingsStagePadding: 64
     readonly property int groupPanelSize: Math.max(180, Math.min(280, 132 + (Math.max(groupEntries.length, 1) * 18)))
     readonly property real groupOrbitRadius: Math.max(44, Math.min(92, groupPanelSize * 0.28))
     readonly property int preferredStageWidth: settingsOpen
-                                           ? Math.max(390, settingsPanelWidth + 56)
+                                           ? Math.max(390, settingsPanelWidth + settingsStagePadding)
                                            : 390
     readonly property int preferredStageHeight: settingsOpen
-                                            ? Math.max(390, settingsPanelHeight + 56)
+                                            ? Math.max(390, settingsPanelHeight + settingsStagePadding)
                                             : 390
 
     function animDuration(baseDuration) {
@@ -1804,6 +1805,7 @@ Item {
     }
 
     Settings {
+        id: settingsPanel
         width: Math.min(ring.settingsPanelWidth, ring.width - 28)
         height: Math.min(ring.settingsPanelHeight, ring.height - 28)
         anchors.centerIn: parent

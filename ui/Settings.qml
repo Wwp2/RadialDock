@@ -5,6 +5,7 @@ Item {
     id: settings
     signal clearAllConfirmed()
     signal resetDefaultsConfirmed()
+    property int contentMargin: 12
     property bool confirmClear: false
     property bool confirmReset: false
     property bool capturingHotkey: false
@@ -16,6 +17,7 @@ Item {
     property bool transferError: false
     property string pendingTransferKind: ""
     property bool importRestartPromptVisible: false
+    implicitHeight: Math.ceil(settingsContent.implicitHeight + (contentMargin * 2))
 
     function clampSpeed(value) {
         return Math.max(0.1, Math.min(10.0, value))
@@ -286,8 +288,9 @@ Item {
     }
 
     Column {
+        id: settingsContent
         anchors.fill: parent
-        anchors.margins: 12
+        anchors.margins: settings.contentMargin
         spacing: 8
 
         Text {
